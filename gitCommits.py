@@ -6,7 +6,11 @@ NOTE: always in chronological order, newst->oldest
 """
 import typing
 import datetime
-import regex as re
+try:
+    import regex as re # type: ignore
+except ImportError:
+    import re
+from gitRemotes import githubUrl
 from gitTools.gitCommit import GitCommit
 
 
@@ -26,20 +30,34 @@ class GitCommits:
 
     def __init__(self,
         commits:typing.Optional[GitCommitsCompatible]=None,
-        gitLogOutput:typing.Union[None,str,typing.List[str]]=None):
+        gitLogOutput:typing.Union[None,str,typing.List[str]]=None,
+        repoPath:typing.Optional[str]=None
+        ):
         """ """
+        self.repoPath=repoPath
+        self._githubRemote:typing.Optional[str]=None
         self._commits:typing.List[GitCommit]=[]
         if gitLogOutput is not None:
             self.parseGitLogOutput(gitLogOutput)
         if commits is not None:
             self.append(commits)
 
+    @property
+    def githubUrl(self)->typing.Optional[str]:
+        """
+        The remote github url for this commit
+        """
+        if self._githubRemote is None:
+            if self.repoPath is not None:
+                self._githubRemote=githubUrl(self.repoPath)
+        return self._githubRemote
+
     def __len__(self)->int:
         return len(self._commits)
     def __getitem__(self,idx)->GitCommit:
         return self._commits[idx]
     def __iter__(self)->typing.Iterable[GitCommit]:
-        return self._commits
+        return iter(self._commits)
     def append(self,commits:GitCommitsCompatible)->None:
         """
         Add new commit(s) to the list
@@ -194,7 +212,8 @@ class GitCommits:
                 # starting new commit
                 if currentCommit is not None:
                     self._commits.append(currentCommit)
-                currentCommit=GitCommit(line[7:])
+                currentCommit=GitCommit(
+                    line[7:],githubUrl=self.githubUrl)
             elif currentCommit is not None:
                 if currentCommit._gatheringLines: # noqa: E501 # pylint: disable=W0212
                     currentCommit._lines.append(line) # noqa: E501 # pylint: disable=W0212

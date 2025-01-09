@@ -4,6 +4,10 @@ Tools for working with diff files
 TODO: should probably be moved to codeTools or something
 """
 import typing
+import datetime
+from paths import Url
+if typing.TYPE_CHECKING:
+    from gitTools.gitCommit import GitCommit
 
 
 FileMatch=typing.Union[
@@ -79,20 +83,38 @@ class Difference:
 
 
 class FileDiff:
-    def __init__(self,data:str):
+    """
+    Diff of a single file
+    """
+    def __init__(self,
+        data:str,
+        commit:typing.Optional["GitCommit"]=None):
         """
         """
         self._data:str=data
         self.filename:str=""
         self.differences:typing.List[Difference]=[]
+        self.commit=commit
         self.assign(data)
+
+    @property
+    def githubUrl(self)->typing.Optional[Url]:
+        """
+        Remote github url linking this file
+        """
+        if not self.commit:
+            return None
+        u=self.commit.githubUrl
+        u=str(u).split('/commit',1)[0]
+        u=f'{u}/blob/{self.commit.hash}/data/{self.filename}'
+        return u
 
     def assign(self,data:str)->None:
         """
         assign data to this object
         """
         self._data=data
-        self.filename=data.split('\n--- a/',1)[-1].split('\n',1)[0]
+        self.filename=data.split(' b/',1)[-1].split('\n',1)[0]
         for s in data.split('\n@@ ')[1:]:
             self.differences.append(Difference('@@ '+s))
 
@@ -110,12 +132,29 @@ class MultifileDiff:
     A diff containing multiple files
     """
 
-    def __init__(self,data:str):
+    def __init__(self,
+        data:str,
+        date:typing.Optional[datetime.datetime]=None,
+        commit:typing.Optional["GitCommit"]=None):
         """
         """
+        self.commit=commit
         self._data=data
+        self.date=date
         self.fileDiffs:typing.Dict[str,FileDiff]={}
         self.assign(data)
+
+    def __iter__(self)->typing.Iterator[FileDiff]:
+        return iter(self.fileDiffs.values())
+
+    @property
+    def githubUrl(self)->typing.Optional[Url]:
+        """
+        remote github link
+        """
+        if self.commit is None:
+            return None
+        return self.commit.githubUrl
 
     def assign(self,data:str)->None:
         """
@@ -123,7 +162,8 @@ class MultifileDiff:
         """
         self._data=data
         for f in data.split("\ndiff --git "):
-            fd=FileDiff("diff --git "+f)
+            fd=FileDiff("diff --git "+f,commit=self.commit)
+            setattr(fd,"date",self.date)
             self.fileDiffs[fd.filename]=fd
 
     @property

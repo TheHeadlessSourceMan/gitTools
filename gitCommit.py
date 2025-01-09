@@ -4,6 +4,7 @@ Information about a particular git commit
 """
 import typing
 import datetime
+from paths import URL
 from k_runner.osrun import osrun
 from .diff import MultifileDiff
 
@@ -14,9 +15,13 @@ class GitCommit:
     """
     def __init__(self,
         hash:str, # pylint: disable=W0622
-        logEntry:typing.Optional[str]=None):
+        logEntry:typing.Optional[str]=None,
+        githubUrl:typing.Optional[str]=None):
         """ """
         self.hash=hash
+        self._githubUrl:typing.Optional[URL]=None
+        if githubUrl is not None:
+            self.githubUrl=githubUrl
         #self._lines:typing.List[str]=[]
         self._gatheringLines=False
         self._gatheringDescription=False
@@ -28,6 +33,19 @@ class GitCommit:
         if logEntry is not None:
             self.assignFromLog(logEntry)
 
+    @property
+    def githubUrl(self)->typing.Optional[str]:
+        """
+        Remote github link to this commit
+        """
+        return self._githubUrl
+    @githubUrl.setter
+    def githubUrl(self,githubUrl:str):
+        sp=str(githubUrl).split('/commit',1)[0]
+        githubUrl=f"{sp}/commit/{self.hash}"
+        self._githubUrl=URL(githubUrl)
+
+    @property
     def localRepoPath(self)->str:
         """
         Where the repo is found
@@ -58,15 +76,14 @@ class GitCommit:
                 self.author=authorStr[0].rstrip()
                 self.authorEmail=authorStr[1].split('>',1)[0].strip()
             elif line.startswith('Date: '):
-                dateStr=line.split(' ',1)[1].strip()
-                #self.date=datetime.datetime.fromisoformat(dateStr) # TODO: figure out the format
+                self.date=line.split(' ',1)[1].strip()
 
     @property
-    def date(self):
+    def date(self)->datetime.datetime:
         """
         The full date of this commit
         """
-        return self.date # TODO: infinite loop!!!
+        return self._date
     @date.setter
     def date(self,d:typing.Union[datetime.datetime,str]):
         if isinstance(d,str):
@@ -142,7 +159,7 @@ class GitCommit:
         """
         Return a diff text string describing what this commit did
         """
-        return self.diff._data
+        return self.diff._data # pylint: disable=W0212
 
     @property
     def diff(self)->MultifileDiff:
@@ -150,8 +167,8 @@ class GitCommit:
         Return a diff describing what this commit did
         """
         cmd=f'git diff {self.hash}'
-        result=osrun.osrun(cmd,workingDirectory=self.localRepoPath)
-        return MultifileDiff(result.stdout)
+        result=osrun(cmd,workingDirectory=self.localRepoPath)
+        return MultifileDiff(result.stdout,self.date,commit=self)
 
     @property
     def oneLineSummary(self)->str:

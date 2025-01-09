@@ -4,14 +4,14 @@ Wrapper for a git repo
 import typing
 import os
 from stringTools.versions import Version
-import k_runner.osrun as osrun
-from paths import UrlCompatible,URL
+from paths import UrlCompatible,URL,asUrl
 from gitTools.branches import gitAbandonChanges
 from gitTools.commits import (
     findRepoInfo,gitLog,gitCommitsForFunction,gitCommitsForLine)
 from gitTools.gitCommits import GitCommits
 from pullRequests import getPRs
 from tagsAndVersions import gitLatestReleaseVersion, gitTags, gitVersionTags
+from gitRemotes import listGitRemotes
 
 
 class GitRepo:
@@ -23,6 +23,10 @@ class GitRepo:
         localRepoPath:str='.',
         githubUrl:typing.Optional[UrlCompatible]=None):
         """ """
+        if githubUrl is None:
+            self.githubUrl=githubUrl(localRepoPath)
+        else:
+            self.githubUrl=asUrl(githubUrl)
         localRepoPath=os.path.abspath(os.path.expandvars(localRepoPath))
         self.info=findRepoInfo(localRepoPath)
         if self.info is None:
@@ -139,17 +143,7 @@ class GitRepo:
         List all known remotes of this repo
         """
         if self._remotes is None:
-            self._remotes=[]
-            cmd=['git','remote','-v']
-            result=osrun.osrun(cmd,workingDirectory=self.localRepoPath)
-            for line in result:
-                abc=line.split()
-                if len(abc)==3:
-                    self._remotes.append((
-                        abc[0],
-                        URL(abc[1]),
-                        abc[2].replace('(','').replace(')','')
-                        ))
+            self._remotes=listGitRemotes(self.localRepoPath)
         return self._remotes
 
     @property
