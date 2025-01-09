@@ -19,7 +19,8 @@ codeExtensions=(
 
 def gitRecursive(
     startingLocation:typing.Union[str,Path]='.',
-    fetch:bool=True
+    fetch:bool=True,
+    sync:bool=False
     )->typing.Dict[str,typing.List[str]]:
     """
     Recursively search for git information
@@ -30,12 +31,14 @@ def gitRecursive(
         "fetched":[],
         "skip_fetch":[],
         "need_checkin":[],
-        "no_git":[]}
+        "no_git":[],
+        "synced":[]}
     """
     fetched=[]
     skip_fetch=[]
     need_checkin=[]
     no_git=[]
+    synced=[]
     if not isinstance(startingLocation,Path):
         if startingLocation is None or not startingLocation:
             startingLocation='.'
@@ -44,7 +47,8 @@ def gitRecursive(
     def r(location:Path):
         if (location/'.git').is_dir():
             # this is a git project
-            if fetch:
+            fetchOk=False
+            if fetch or sync:
                 # run git fetch
                 cmd=['git','fetch']
                 po=subprocess.Popen(cmd,cwd=str(location),
@@ -57,6 +61,7 @@ def gitRecursive(
                     skip_fetch.append(location)
                 else:
                     fetched.append(location)
+                    fetchOk=True
             else:
                 skip_fetch.append(location)
             # check the git status to see if it needs checkin
@@ -74,7 +79,34 @@ def gitRecursive(
                     print(f'Git files needing checkin "{location}"')
                     msg=outB.decode('utf-8',errors='ignore')
                     print('\t'+msg.replace('\n','\n\t'))
-                need_checkin.append(location)
+                    need_checkin.append(location)
+            # sync it
+            pullOk=False
+            if sync and fetchOk:
+                # run git pull
+                cmd=['git','pull']
+                po=subprocess.Popen(cmd,cwd=str(location),
+                    stderr=subprocess.PIPE)
+                _,errB=po.communicate()
+                errB=errB.strip()
+                if errB:
+                    print(f'ERR: pulling "{location}"')
+                    print(errB.decode('utf-8',errors='ignore'))
+                else:
+                    synced.append(location)
+                    pullOk=True
+            if sync and pullOk:
+                # run git push
+                cmd=['git','push']
+                po=subprocess.Popen(cmd,cwd=str(location),
+                    stderr=subprocess.PIPE)
+                _,errB=po.communicate()
+                errB=errB.strip()
+                if errB:
+                    print(f'ERR: pushing "{location}"')
+                    print(errB.decode('utf-8',errors='ignore'))
+                else:
+                    synced.append(location)
         else:
             nextDirs=[]
             isCodeProject=False
@@ -96,7 +128,8 @@ def gitRecursive(
         "fetched":fetched,
         "skip_fetch":skip_fetch,
         "need_checkin":need_checkin,
-        "no_git":no_git}
+        "no_git":no_git,
+        "synced":synced}
 
 
 def cmdline(args:typing.Iterable[str])->int:
@@ -108,8 +141,9 @@ def cmdline(args:typing.Iterable[str])->int:
     didSomething=False
     printHelp=False
     fetch=False
-    def doIt(directory='.',fetch=False):
-        results=gitRecursive(directory,fetch=fetch)
+    sync=False
+    def doIt(directory='.',fetch=False,sync=False):
+        results=gitRecursive(directory,fetch=fetch,sync=sync)
         for k,v in results.items():
             if k.find('fetch')>=0:
                 if fetch:
@@ -129,20 +163,23 @@ def cmdline(args:typing.Iterable[str])->int:
                 printHelp=True
             elif av[0]=='--fetch':
                 fetch=True
+            elif av[0]=='--sync':
+                sync=True
             else:
                 printHelp=True
         else:
-            doIt(arg,fetch=fetch)
+            doIt(arg,fetch=fetch,sync=sync)
             didSomething=True
     if not didSomething:
-        doIt(fetch=fetch)
+        doIt(fetch=fetch,sync=sync)
         didSomething=True
     if printHelp or not didSomething:
         print('USAGE:')
         print('  gitRecursive [options] [directories]')
         print('OPTIONS:')
         print('  -h ................... this help')
-        print('  --fetch ............... attempt to fetch all repos') # noqa: E501 # pylint: disable=line-too-long
+        print('  --fetch .............. attempt to fetch all repos') # noqa: E501 # pylint: disable=line-too-long
+        print('  --sync ............... attempt to sync (pull, then push) all repos') # noqa: E501 # pylint: disable=line-too-long
         return 1
     return 0
 
