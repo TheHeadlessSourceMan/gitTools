@@ -22,7 +22,7 @@ def cmdline(args:typing.Iterable[str])->int:
     :param args: command line arguments (WITHOUT the filename)
     """
     didSomething=False
-    printhelp=False
+    printHelp=False
     compileFlag:bool=False
     runFlag:bool=False
     for arg in args:
@@ -30,7 +30,7 @@ def cmdline(args:typing.Iterable[str])->int:
             av=arg.split('=',1)
             av[0]=av[0].lower()
             if av[0] in ('-h','--help'):
-                printhelp=True
+                printHelp=True
             elif av[0] in ('--createbranch','--create'):
                 createBranch(av[1],compileFlag,runFlag)
                 didSomething=True
@@ -73,7 +73,7 @@ def cmdline(args:typing.Iterable[str])->int:
                     print(tag)
                 didSomething=True
             elif av[0] in ('--defaults','--copyoverprojectdefaults'):
-                copyOverProjectDefaults(r'D:\git\OpenAGC')
+                copyOverProjectDefaults(r'')
                 didSomething=True
             elif av[0] in ('--grep','--gitgrep'):
                 for result in gitGrep(av[1],"."):
@@ -83,11 +83,11 @@ def cmdline(args:typing.Iterable[str])->int:
                     print('-'*20)
                 didSomething=True
             else:
-                printhelp=True
+                printHelp=True
         else:
-            printhelp=True
-    if printhelp or not didSomething:
-        print('USEAGE:')
+            printHelp=True
+    if printHelp or not didSomething:
+        print('USAGE:')
         print('  gitTools [options]')
         print('OPTIONS:')
         print('  -h ................................. this help')

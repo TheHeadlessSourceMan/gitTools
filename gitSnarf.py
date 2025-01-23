@@ -19,7 +19,7 @@ class GitSnarf:
 
     def __init__(self,
         testFn:typing.Callable[[],bool],
-        localRepoPath:str=r"d:\git\OpenAGC"):
+        localRepoPath:str=r""):
         """ """
         self.testFn:typing.Callable[[],bool]=testFn
         self.localRepoPath=localRepoPath
@@ -123,7 +123,7 @@ class GitSnarf:
             endVersionIdx=self._findVersionIdx(endVersion)
         def runTest(ci:GitCommit)->bool:
             print(f'testing commit: {ci.commitId}')
-            checkoutBranch(ci.commitId,compile=True,run=False)
+            checkoutBranch(ci.commitId)
             return self.testFn()
         idx=self._binSearch(
             self.gitCommits[startVersionIdx:endVersionIdx],runTest)

@@ -9,6 +9,7 @@ from paths import URL,FileLocation
 from k_runner.osrun import osrun
 from gitTools.gitCommit import GitCommit
 from gitTools.gitCommits import GitCommits
+from gitTools.gitRemotes import githubUrl
 
 
 def gitLog(localRepoPath:str,moreparams="")->GitCommits:
@@ -19,6 +20,7 @@ def gitLog(localRepoPath:str,moreparams="")->GitCommits:
     object like the other functions do
     """
     ret=GitCommits()
+    githubUrlValue=githubUrl(localRepoPath)
     current:typing.Optional[GitCommit]=None
     cmd=['git','log']
     if moreparams:
@@ -40,7 +42,7 @@ def gitLog(localRepoPath:str,moreparams="")->GitCommits:
         if tag=='commit':
             if current is not None:
                 ret.append(current)
-            current=GitCommit(value)
+            current=GitCommit(value,githubUrl=githubUrlValue)
         elif tag=='Author:':
             if current is not None:
                 current.author=value

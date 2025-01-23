@@ -51,8 +51,6 @@ def shutdownCodeDependentProcesses()->typing.List[str]:
     is available)
     """
     ret:typing.List[str]=[]
-    import agcx
-    agcx.shutdown()
     return ret
 
 
@@ -63,14 +61,13 @@ def restoreCodeDependentProcesses(
     TODO: restore all code dependent processes shut down by
         shutdownCodeDependentProcesses()
     """
-
+    _=originalRunningProcesses
+    raise NotImplementedError()
 
 def checkoutBranch(
     commitId:typing.Union[str,GitCommit,Version],
-    compile:bool=False, # pylint: disable=W0622
-    run:bool=False,
-    localRepoPath:str=r"d:\git\OpenAGC_upstream",
-    symlinkLocation:str=r"d:\git\OpenAGC"
+    localRepoPath:str=r"",
+    symlinkLocation:str=r""
     )->None:
     """
     Check out a particular commit id.
@@ -78,7 +75,6 @@ def checkoutBranch(
     :commitId: can be a short or long hash, or a version number
     """
     import osTools.ln as ln
-    import agcx
     if isinstance(commitId,Version):
         commitInfo=gitTagToCommit(localRepoPath,str(commitId))
         commitId=commitInfo.commitId
@@ -107,7 +103,7 @@ def checkoutBranch(
         # start with a blank slate
         print('cleaning up existing ...')
         originalRunningProcesses=shutdownCodeDependentProcesses()
-        print('removing OpenAGC link ...')
+        print('removing link ...')
         ln.unlink(symlinkLocation)
         # select upstream as the current link
         print(f'updating link {symlinkLocation} to point to {localRepoPath} ...') # noqa: E501 # pylint: disable=line-too-long
@@ -118,13 +114,6 @@ def checkoutBranch(
     print('$>',' '.join(cmd))
     _=osrun(cmd,workingDirectory=localRepoPath,
         callOnStdoutLine=print,callOnStderrLine=printerr)
-    # compile and run if they asked for that
-    if run:
-        print('ccompiling and running...')
-        agcx.agcx(makeClean=True,autostart=True)
-    elif compile:
-        print('ccompiling...')
-        agcx.agcx(makeClean=True,autostart=True)
     if originalRunningProcesses is not None:
         restoreCodeDependentProcesses(originalRunningProcesses)
     print('done!')
@@ -153,10 +142,8 @@ def copyOverProjectDefaults(
 
 
 def createBranch(swr:str,
-    compile:bool=False, # pylint: disable=W0622
-    run:bool=False,
-    gitProject='OpenAGC',
-    gitLocation='d:\git'
+    gitProject='MyProject',
+    gitLocation=r'd:\git'
     )->None:
     """
     note that the swr should be of the form:
@@ -164,20 +151,19 @@ def createBranch(swr:str,
     or
         SWR-12345
     or a url whose end resource is an swr number
-        https://osii-jira.atlassian.net/browse/SWR-136385
+        https://mycompany-jira.atlassian.net/browse/SWR-136385
 
     WARNING: the steps here should be correct, but it has not been tested!
 
     NOTE: getting...
         "fatal: unable to access
-        'https://git.dev.osii.com/keilander/OpenAGC.git/': 
+        'https://something/something.git/':
         schannel: SNI or certificate check failed:
         SEC_E_WRONG_PRINCIPAL (0x80090322)
         - The target principal name is incorrect."
-        means that the vpn is not logged in
+        usually means that the vpn is not logged in
     """
-    from osTools import ln, unlink
-    import agcx
+    from osTools import ln,unlink
     ANSI_RED="\033[0;31m"
     #ANSI_GREEN="\033[0;32m"
     ANSI_WHITE="\033[0;37m"
@@ -185,9 +171,10 @@ def createBranch(swr:str,
         print(f'{ANSI_WHITE}{s}')
     def stderrLine(s:str):
         print(f'{ANSI_RED}{s}{ANSI_WHITE}')
-    originBranchUrl=f"https://git.dev.osii.com/keilander/{gitProject}.git"
+    originBranchUrl=f"https://github.com/user/{gitProject}.git"
     if swr.startswith('http'):
-        # it's a url like https://osii-jira.atlassian.net/browse/SWR-136385
+        # it's a url like:
+        #   https://mycompany-jira.atlassian.net/browse/SWR-123456
         swr=swr.rsplit('/',1)[-1].split('?',1)[0]
         tagSplit=[swr]
     else:
@@ -261,13 +248,6 @@ def createBranch(swr:str,
         print(stderr)
     print('') # because git omits the trailing newline
     copyOverProjectDefaults(cwd)
-    # compile and run if they asked for that
-    if run:
-        print('ccompiling and running...')
-        agcx.agcx(makeClean=True,autostart=True)
-    elif compile:
-        print('ccompiling...')
-        agcx.agcx(makeClean=True,autostart=True)
     restoreCodeDependentProcesses(originalRunningProcesses)
     print('done!')
 

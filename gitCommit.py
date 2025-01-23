@@ -4,28 +4,86 @@ Information about a particular git commit
 """
 import typing
 import datetime
+from paths import URL
+from k_runner.osrun import osrun
+from .diff import MultifileDiff
 
 
 class GitCommit:
     """
     Information about a particular git commit
     """
-    def __init__(self,hash:str): # pylint: disable=W0622
+    def __init__(self,
+        hash:str, # pylint: disable=W0622
+        logEntry:typing.Optional[str]=None,
+        githubUrl:typing.Optional[str]=None):
+        """ """
         self.hash=hash
-        self._lines:typing.List[str]=[]
+        self._githubUrl:typing.Optional[URL]=None
+        if githubUrl is not None:
+            self.githubUrl=githubUrl
+        #self._lines:typing.List[str]=[]
         self._gatheringLines=False
         self._gatheringDescription=False
         self._date:typing.Optional[datetime.datetime]=None
         self.merge:typing.List[str]=[]
         self.author:str=''
+        self.authorEmail:str=''
         self.description:str=''
+        if logEntry is not None:
+            self.assignFromLog(logEntry)
 
     @property
-    def date(self):
+    def githubUrl(self)->typing.Optional[str]:
+        """
+        Remote github link to this commit
+        """
+        return self._githubUrl
+    @githubUrl.setter
+    def githubUrl(self,githubUrl:str):
+        sp=str(githubUrl).split('/commit',1)[0]
+        githubUrl=f"{sp}/commit/{self.hash}"
+        self._githubUrl=URL(githubUrl)
+
+    @property
+    def localRepoPath(self)->str:
+        """
+        Where the repo is found
+        """
+        # TODO: probably have member pointing back to a GitRepo
+        # and get it from that
+        return '.'
+
+    def clear(self):
+        """
+        Clear this object
+        """
+        self.hash:str=""
+        self.author:str=""
+        self.authorEmail:str=""
+        self.date:typing.Optional[datetime.datetime]=None
+
+    def assignFromLog(self,logEntry:str):
+        """
+        Assign from an entry from a git log command
+        """
+        self.clear()
+        for line in logEntry.strip().replace('\r','').split('\n'):
+            if line.startswith('commit '):
+                self.hash=line.split(' ',1)[1].strip()
+            elif line.startswith('Author: '):
+                authorStr=line.split(' ',1)[1].strip().split('<',1)
+                self.author=authorStr[0].rstrip()
+                self.authorEmail=authorStr[1].split('>',1)[0].strip()
+            elif line.startswith('Date: '):
+                self.date=line.split(' ',1)[1].strip()
+
+    @property
+    def date(self)->datetime.datetime:
         """
         The full date of this commit
         """
-        return self.date # TODO: infinite loop!!!
+        return self._date
     @date.setter
     def date(self,d:typing.Union[datetime.datetime,str]):
         if isinstance(d,str):
@@ -97,55 +155,20 @@ class GitCommit:
         return self.title
 
     @property
-    def oldCode(self)->str:
+    def diffText(self)->str:
         """
-        Return the old code
+        Return a diff text string describing what this commit did
         """
-        ret=[]
-        ready=False
-        for line in self._lines:
-            if not ready:
-                if line.startswith('@@'):
-                    ready=True
-            elif line:
-                if line[0]=='+':
-                    pass
-                elif line[0]=='-':
-                    ret.append(line[1:])
-                else:
-                    ret.append(line)
-            else:
-                ret.append('')
-        return '\n'.join(ret)
+        return self.diff._data # pylint: disable=W0212
 
     @property
-    def newCode(self)->str:
-        """
-        Return the new code
-        """
-        ret=[]
-        ready=False
-        for line in self._lines:
-            if not ready:
-                if line.startswith('@@'):
-                    ready=True
-            elif line:
-                if line[0]=='+':
-                    ret.append(line[1:])
-                elif line[0]=='-':
-                    pass
-                else:
-                    ret.append(line)
-            else:
-                ret.append('')
-        return '\n'.join(ret)
-
-    @property
-    def diff(self)->str:
+    def diff(self)->MultifileDiff:
         """
         Return a diff describing what this commit did
         """
-        return '\n'.join(self._lines)
+        cmd=f'git diff {self.hash}'
+        result=osrun(cmd,workingDirectory=self.localRepoPath)
+        return MultifileDiff(result.stdout,self.date,commit=self)
 
     @property
     def oneLineSummary(self)->str:
@@ -156,3 +179,16 @@ class GitCommit:
 
     def __repr__(self)->str:
         return self.hash
+
+
+def getAllCommits(
+    localRepo:str
+    )->typing.Generator[GitCommit,None,None]:
+    """
+    Get all commits for a repo
+    """
+    cmd="git log"
+    results=osrun(cmd,workingDirectory=localRepo)
+    gitLog=results.stdout()
+    for entry in gitLog.replace('\r','').split('\n\n'):
+        yield GitCommit(entry)
