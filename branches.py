@@ -3,6 +3,7 @@ Tools for managing git branches
 """
 import typing
 import os
+from pathlib import Path
 from paths import UrlCompatible,asUrl
 from k_runner.osrun import osrun
 from gitTools.tagsAndVersions import (
@@ -143,7 +144,9 @@ def copyOverProjectDefaults(
 
 def createBranch(swr:str,
     gitProject='MyProject',
-    gitLocation=r'd:\git'
+    gitLocation:typing.Union[str,Path]=r'd:\git',
+    gitHost:str='github.com',
+    gitUser:str='user'
     )->None:
     """
     note that the swr should be of the form:
@@ -171,7 +174,10 @@ def createBranch(swr:str,
         print(f'{ANSI_WHITE}{s}')
     def stderrLine(s:str):
         print(f'{ANSI_RED}{s}{ANSI_WHITE}')
-    originBranchUrl=f"https://github.com/user/{gitProject}.git"
+    if not isinstance(gitLocation,Path):
+        gitLocation=Path(gitLocation)
+    gitLocation=gitLocation.absolute()
+    originBranchUrl=f"https://{gitHost}/{gitUser}/{gitProject}.git"
     if swr.startswith('http'):
         # it's a url like:
         #   https://mycompany-jira.atlassian.net/browse/SWR-123456
@@ -196,9 +202,11 @@ def createBranch(swr:str,
     originalRunningProcesses=shutdownCodeDependentProcesses()
     cwd=gitLocation
     localRepoPath=f'{gitProject}_{swr}'
-    localRepoPathAbsolute=f'{cwd}{os.sep}{localRepoPath}'
+    localRepoPathAbsolute=cwd/localRepoPath
     projectSymlink=f'{gitProject}'
-    projectSymlinkAbsolute=f'{cwd}{os.sep}{projectSymlink}'
+    projectSymlinkAbsolute=cwd/projectSymlink
+    linkLocation=cwd/gitProject
+    linkTarget=cwd/f'{gitProject}_{swr}'
     print('Using configuration:')
     print(f'\t{tag=}')
     print(f'\t{swr=}')
@@ -209,12 +217,12 @@ def createBranch(swr:str,
     print(f'\t{projectSymlink=}')
     print(f'\t{projectSymlinkAbsolute=}')
     print(f'removing {gitProject} link ...')
-    unlink(os.sep.join((cwd,gitProject)))
+    unlink(linkLocation)
     # git a clean copy of the source
     if os.path.isdir(localRepoPathAbsolute):
         print('directory already exists. not checking out')
     else:
-        cmd=['git','clone',originBranchUrl,f'{localRepoPath}']
+        cmd=['git','clone',originBranchUrl,str(localRepoPathAbsolute)]
         print('&>',' '.join(cmd))
         result=osrun(cmd,workingDirectory=cwd,
             callOnStdoutLine=stdoutLine,callOnStderrLine=stderrLine)
@@ -222,8 +230,6 @@ def createBranch(swr:str,
             print(result.stderr)
             #raise Exception(result.stderr)
     # select that as the current link
-    linkLocation=os.sep.join((cwd,gitProject))
-    linkTarget=os.sep.join((cwd,f'{gitProject}_{swr}'))
     print(f'updating link at {linkLocation} to point to {linkTarget} ...')
     ln(linkTarget,linkLocation)
     # create a new branch
