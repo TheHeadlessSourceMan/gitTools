@@ -3,6 +3,7 @@ Tools for managing git branches
 """
 import typing
 import os
+import subprocess
 from pathlib import Path
 from paths import UrlCompatible,asUrl
 from k_runner.osrun import osrun
@@ -56,14 +57,19 @@ def shutdownCodeDependentProcesses()->typing.List[str]:
 
 
 def restoreCodeDependentProcesses(
-    originalRunningProcesses:typing.List[str]
+    originalRunningProcesses:typing.Iterable[str]
     )->None:
     """
     TODO: restore all code dependent processes shut down by
         shutdownCodeDependentProcesses()
     """
-    _=originalRunningProcesses
-    raise NotImplementedError()
+    if not originalRunningProcesses:
+        return
+    for cmd in originalRunningProcesses:
+        subprocess.Popen(cmd,shell=True,
+            creationflags=subprocess.DETACHED_PROCESS\
+                |subprocess.CREATE_NEW_PROCESS_GROUP)
+
 
 def checkoutBranch(
     commitId:typing.Union[str,GitCommit,Version],
