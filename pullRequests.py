@@ -2,12 +2,14 @@
 Tools for managing pull requests
 """
 import typing
-from paths import UrlCompatible,asUrl
+from pathlib import Path
+from paths import UrlCompatible,asUrl,asPathlibPath
 from k_runner.osrun import osrun
 from gitTools.branches import sanitizeBranchName,branchHyperlink
 
 
-def createPRBranch(upstreamBranchLocation:str,
+def createPRBranch(
+    upstreamBranchLocation:typing.Union[str,Path,UrlCompatible],
     branchName:str,
     printCb:typing.Optional[typing.Callable[[str],None]]=None
     )->None:
@@ -17,6 +19,7 @@ def createPRBranch(upstreamBranchLocation:str,
     """
     if printCb is None:
         printCb=print
+    upstreamBranchLocation=str(asPathlibPath(upstreamBranchLocation))
     branchName=sanitizeBranchName(branchName)
     printCb('Creating branch...')
     result=osrun('git',['checkout','-b',branchName],
@@ -45,7 +48,7 @@ def prHyperlink(repoUrl:UrlCompatible,prNum:typing.Union[int,str])->str:
 
 
 def getPRs(
-    localRepoPath:str,
+    localRepoPath:typing.Union[str,Path,UrlCompatible],
     author:typing.Optional[str]=None,
     limit:int=30,
     state:str='open',
@@ -62,9 +65,10 @@ def getPRs(
 
     NOTE: this depends on the "gh" commandline github access tool
     """
-    import pandas as pd
+    import pandas as pd # type: ignore
     import subprocess
     import io
+    localRepoPath=asPathlibPath(localRepoPath)
     cmd=['gh','pr','list']
     if author is not None:
         cmd.append('-A')
@@ -78,7 +82,7 @@ def getPRs(
     if baseBranch is not None:
         cmd.append('-B')
         cmd.append(baseBranch)
-    po=subprocess.Popen(cmd,cwd=localRepoPath,stdout=subprocess.STDOUT)
+    po=subprocess.Popen(cmd,cwd=str(localRepoPath),stdout=subprocess.STDOUT)
     out,_=po.communicate()
     data=out.decode('utf8',errors='ignore').replace('\r','').split('\n')
     data.insert(0,"PR\tTitle\tFrom Branch\tState\tTimestamp")
@@ -89,7 +93,7 @@ def getPRs(
 
 
 def updatePRBranch(
-    upstreamBranchLocation:str,
+    upstreamBranchLocation:typing.Union[str,Path,UrlCompatible],
     branchName:str,
     printCb:typing.Optional[typing.Callable[[str],None]]=None
     )->None:
@@ -98,6 +102,7 @@ def updatePRBranch(
     """
     if printCb is None:
         printCb=print
+    upstreamBranchLocation=str(asPathlibPath(upstreamBranchLocation))
     branchName=sanitizeBranchName(branchName)
     # sometimes the following is required and I'm not sure why
     if True:
