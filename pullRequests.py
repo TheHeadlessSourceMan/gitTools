@@ -35,8 +35,29 @@ def createPRBranch(
     printCb('Pushing branch...')
     result=osrun('git',['push','origin',branchName],
         callOnStdoutErrLine=printCb,workingDirectory=upstreamBranchLocation)
+    err=result.err.strip()
+    hasUnexpectedErrLine=False
     if not result.succeeded:
-        raise Exception(result.err)
+        for line in err.split('\n'):
+            line=line.strip()
+            if not line:
+                continue
+            if line.startswith('remote:'):
+                remoteMessage=line.split(':',1)[0].lstrip()
+                if not remoteMessage:
+                    continue
+                if not remoteMessage.startswith('Create a pull request'):
+                    continue
+                if not remoteMessage.startswith('https://'):
+                    continue
+            if not line.startswith('To https://'):
+                continue
+            if not line.startswith('* '):
+                continue
+            hasUnexpectedErrLine=True
+            break
+    if hasUnexpectedErrLine:
+        raise Exception(err)
     printCb('DONE')
 
 
