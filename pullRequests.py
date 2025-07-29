@@ -5,6 +5,7 @@ import typing
 from pathlib import Path
 from paths import UrlCompatible,asUrl,asPathlibPath
 from k_runner.osrun import osrun
+from k_runner import ApplicationCallbacks
 from gitTools.branches import sanitizeBranchName,branchHyperlink
 
 
@@ -22,8 +23,10 @@ def createPRBranch(
     upstreamBranchLocation=str(asPathlibPath(upstreamBranchLocation))
     branchName=sanitizeBranchName(branchName)
     printCb('Creating branch...')
-    result=osrun('git',['checkout','-b',branchName],
-        callOnStdoutErrLine=printCb,workingDirectory=upstreamBranchLocation)
+    result=osrun(['git','checkout','-b',branchName],
+        workingDirectory=upstreamBranchLocation,
+        runCallbacks=ApplicationCallbacks(
+            stderrLineCallbacks=printCb))
     if not result.succeeded:
         err=result.err.strip()
         if err.startswith("Switched to a new branch "):
@@ -33,8 +36,10 @@ def createPRBranch(
         else:
             raise Exception(err)
     printCb('Pushing branch...')
-    result=osrun('git',['push','origin',branchName],
-        callOnStdoutErrLine=printCb,workingDirectory=upstreamBranchLocation)
+    result=osrun(['git','push','origin',branchName],
+        workingDirectory=upstreamBranchLocation,
+        runCallbacks=ApplicationCallbacks(
+            stderrLineCallbacks=printCb))
     err=result.err.strip()
     hasUnexpectedErrLine=False
     if not result.succeeded:
@@ -92,9 +97,7 @@ def getPRs(
     import io
     if localRepoPath is None:
         localRepoPath='.'
-    # TODO: this is not working
-    # localRepoPath=asPathlibPath(localRepoPath)
-    localRepoPath=Path(localRepoPath)
+    localRepoPath=asPathlibPath(localRepoPath)
     cmd=['gh','pr','list']
     if author is not None:
         cmd.append('-A')
@@ -134,35 +137,45 @@ def updatePRBranch(
     # sometimes the following is required and I'm not sure why
     if True:
         printCb('Checking out master...')
-        result=osrun('git',['checkout','master'],
-            callOnStdoutErrLine=printCb,
-            workingDirectory=upstreamBranchLocation)
+        result=osrun(['git','checkout','master'],
+            workingDirectory=upstreamBranchLocation,
+            runCallbacks=ApplicationCallbacks(
+                stdouterrLineCallbacks=printCb))
         if not result.succeeded:
             raise Exception(result.err)
         printCb('Pulling master...')
-        result=osrun('git',['pull'],
-            callOnStdoutErrLine=printCb,
-            workingDirectory=upstreamBranchLocation)
+        result=osrun(['git','pull'],
+            workingDirectory=upstreamBranchLocation,
+            runCallbacks=ApplicationCallbacks(
+                stdouterrLineCallbacks=printCb))
         if not result.succeeded:
             raise Exception(result.err)
     printCb('Pulling latest...')
-    result=osrun('git',['pull','origin',branchName],
-        callOnStdoutErrLine=printCb,workingDirectory=upstreamBranchLocation)
+    result=osrun(['git','pull','origin',branchName],
+            workingDirectory=upstreamBranchLocation,
+            runCallbacks=ApplicationCallbacks(
+                stdouterrLineCallbacks=printCb))
     if not result.succeeded:
         raise Exception(result.err)
     printCb('Checking out branch...')
-    result=osrun('git',['checkout',branchName],
-        callOnStdoutErrLine=printCb,workingDirectory=upstreamBranchLocation)
+    result=osrun(['git','checkout',branchName],
+            workingDirectory=upstreamBranchLocation,
+            runCallbacks=ApplicationCallbacks(
+                stdouterrLineCallbacks=printCb))
     if not result.succeeded:
         raise Exception(result.err)
     printCb('Merging changes from master...')
-    result=osrun('git',['merge','master'],
-        callOnStdoutErrLine=printCb,workingDirectory=upstreamBranchLocation)
+    result=osrun(['git','merge','master'],
+            workingDirectory=upstreamBranchLocation,
+            runCallbacks=ApplicationCallbacks(
+                stdouterrLineCallbacks=printCb))
     if not result.succeeded:
         raise Exception(result.err)
     printCb('Pushing latest changes to remote branch...')
-    result=osrun('git',['push','-u','origin',branchName],
-        callOnStdoutErrLine=printCb,workingDirectory=upstreamBranchLocation)
+    result=osrun(['git','push','-u','origin',branchName],
+            workingDirectory=upstreamBranchLocation,
+            runCallbacks=ApplicationCallbacks(
+                stdouterrLineCallbacks=printCb))
     if not result.succeeded:
         raise Exception(result.err)
     printCb('DONE')
@@ -188,7 +201,7 @@ def checkoutPR(
     if directory is None:
         directory=Path('.')
     elif not isinstance(directory,Path):
-        directory=asPathlibPath(str)
+        directory=asPathlibPath(directory)
     if not isinstance(prNumber,int):
         if prNumber.startswith('http'):
             parts=prNumber.rsplit('/pull/',1)

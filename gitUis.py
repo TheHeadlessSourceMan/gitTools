@@ -3,7 +3,7 @@ Tool to locate and incorporate any available git ui's
 """
 import typing
 import os
-import k_runner.osrun as osrun
+from k_runner.osrun import osrun
 
 
 class _GitUi:
@@ -21,7 +21,7 @@ class _GitUi:
         """
         Run this ui
         """
-        osrun.run(self.appLocation,detatch=True,workingDirectory=self.sartIn)
+        osrun(self.appLocation,detach=True,workingDirectory=self.sartIn)
 
     def __call__(self):
         self.run()

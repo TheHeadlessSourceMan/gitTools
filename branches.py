@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from paths import UrlCompatible,asUrl
 from k_runner.osrun import osrun
+from k_runner import ApplicationCallbacks
 from gitTools.tagsAndVersions import (
     findRepoPath,GitCommit,Version,gitTagToCommit)
 
@@ -120,14 +121,16 @@ def checkoutBranch(
     cmd=['git','checkout',f'{commitId}']
     print('$>',' '.join(cmd))
     _=osrun(cmd,workingDirectory=localRepoPath,
-        callOnStdoutLine=print,callOnStderrLine=printerr)
+        runCallbacks=ApplicationCallbacks(
+            stdoutLineCallbacks=print,
+            stderrLineCallbacks=printerr))
     if originalRunningProcesses is not None:
         restoreCodeDependentProcesses(originalRunningProcesses)
     print('done!')
 
 
 def copyOverProjectDefaults(
-    cwd:str,
+    cwd:typing.Union[str,Path],
     projDefaultsDir:typing.Optional[str]=None
     )->None:
     """
@@ -231,7 +234,9 @@ def createBranch(swr:str,
         cmd=['git','clone',originBranchUrl,str(localRepoPathAbsolute)]
         print('&>',' '.join(cmd))
         result=osrun(cmd,workingDirectory=cwd,
-            callOnStdoutLine=stdoutLine,callOnStderrLine=stderrLine)
+            runCallbacks=ApplicationCallbacks(
+                stdoutLineCallbacks=stdoutLine,
+                stderrLineCallbacks=stderrLine))
         if result.stderr:# and not result.stderr.endswith(' done.'):
             print(result.stderr)
             #raise Exception(result.stderr)
@@ -243,7 +248,9 @@ def createBranch(swr:str,
     print(f'creating {taggedSwr} branch ...')
     cmd=['git','checkout','-b',taggedSwr]
     result=osrun(cmd,workingDirectory=cwd,
-        callOnStdoutLine=stderrLine,callOnStderrLine=stderrLine)
+        runCallbacks=ApplicationCallbacks(
+            stdoutLineCallbacks=stdoutLine,
+            stderrLineCallbacks=stderrLine))
     stderr=result.stderr.strip()
     if stderr and not stderr.startswith('Switched to'):
         if stderr.endswith(f"a branch named '{taggedSwr}' already exists"):
@@ -252,7 +259,9 @@ def createBranch(swr:str,
             raise Exception(result.stderr)
     cmd=['git','push','-u','origin',taggedSwr]
     result=osrun(cmd,workingDirectory=cwd,
-        callOnStdoutLine=stderrLine,callOnStderrLine=stderrLine)
+        runCallbacks=ApplicationCallbacks(
+            stdoutLineCallbacks=stdoutLine,
+            stderrLineCallbacks=stderrLine))
     stderr=result.stderr.strip()
     if stderr:
         if stderr.lower().find('err')>=0:
