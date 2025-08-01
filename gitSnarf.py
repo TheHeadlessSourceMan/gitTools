@@ -126,5 +126,6 @@ class GitSnarf:
             checkoutBranch(ci.commitId)
             return self.testFn()
         idx=self._binSearch(
-            self.gitCommits[startVersionIdx:endVersionIdx],runTest)
+            self.gitCommits[startVersionIdx:endVersionIdx], # type: ignore
+            runTest)
         return self.gitCommits[idx]

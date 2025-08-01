@@ -5,20 +5,25 @@ import typing
 import os
 import datetime
 import subprocess
-from paths import URL,FileLocation
+from paths import URL,FileLocation,UrlCompatible,asUrl
 from k_runner.osrun import osrun
 from gitTools.gitCommit import GitCommit
 from gitTools.gitCommits import GitCommits
 from gitTools.gitRemotes import githubUrl
 
 
-def gitLog(localRepoPath:str,moreparams="")->GitCommits:
+def gitLog(localRepoPath:UrlCompatible,moreparams="")->GitCommits:
     """
     get a git log and pythonify the results
 
     TODO: some of this is old/redundant and could leverage GitCommits
     object like the other functions do
     """
+    if not isinstance(localRepoPath,str):
+        localRepoPath=asUrl(localRepoPath).filePath # type: ignore
+        if localRepoPath is None:
+            raise FileNotFoundError()
+    localRepoPath=str(localRepoPath)
     ret=GitCommits()
     githubUrlValue=githubUrl(localRepoPath)
     current:typing.Optional[GitCommit]=None
@@ -164,14 +169,14 @@ def gitGrep(find:str,
 
 
 def githubFileReferenceUrl(
-    localRepoPath:typing.Union[str,FileLocation],
+    localRepoPath:typing.Union[UrlCompatible,FileLocation],
     lineNumber:int=0,
     commitHash:str='master',
     )->URL:
     """
     Get a url to go to a particular file in github
 
-    :filePath: link to this file
+    :localRepoPath: link to this file
         can be a filename in the filesystem and we'll figure out where
         it is in the repo
         if this is a fileLocation, will use the line number
@@ -181,28 +186,40 @@ def githubFileReferenceUrl(
         if blank, use the current file
     """
     if isinstance(localRepoPath,FileLocation) and lineNumber==0:
-        localRepoPath=lineNumber
+        if localRepoPath.line is not None:
+            lineNumber=localRepoPath.line
+        if localRepoPath.filename is None:
+            raise FileNotFoundError('No filename given')
         localRepoPath=localRepoPath.filename
-    localRepoPath=os.path.abspath(localRepoPath)
+    if isinstance(localRepoPath,str):
+        localRepoPath=URL(os.path.abspath(localRepoPath))
     info=findRepoInfo(localRepoPath)
     repoPath=info['repoPath']
-    repoRelativePath=localRepoPath[len(repoPath):].replace(os.sep,'/')
+    repoRelativePath='/'.join(
+        [str(s) for s in localRepoPath[len(repoPath):]] # type: ignore
+        ).replace(os.sep,'/')
     while repoRelativePath and repoRelativePath[0]=='/':
         repoRelativePath=repoRelativePath[1:]
     githubUrl=info['githubUrl']
     ret=f'{githubUrl}/blob/{commitHash}/{repoRelativePath}'
     if lineNumber!=0:
         ret=f'{ret}#L{lineNumber}'
-    return ret
+    return URL(ret)
 
 
-def findRepoPath(localRepoPath:str)->typing.Optional[str]:
+def findRepoPath(localRepoPath:UrlCompatible)->typing.Optional[str]:
     """
     traverse up the file tree until you find a path with .git directory in it
 
     if there is one, return it. Otherwise, return None
     """
-    localRepoPath=os.path.abspath(os.path.expandvars(localRepoPath))
+    if not isinstance(localRepoPath,str):
+        localRepoPath=asUrl(localRepoPath).filePath # type: ignore
+        if localRepoPath is None:
+            raise Exception('No local repo path given')
+        localRepoPath=str(localRepoPath)
+    else:
+        localRepoPath=os.path.abspath(os.path.expandvars(localRepoPath))
     try:
         while True:
             if os.path.exists(f'{localRepoPath}{os.sep}.git'):
@@ -211,7 +228,8 @@ def findRepoPath(localRepoPath:str)->typing.Optional[str]:
     except IndexError: # because the rsplit did not work
         pass
 
-def findRepoInfo(localRepoPath:str)->typing.Dict[str,str]:
+
+def findRepoInfo(localRepoPath:UrlCompatible)->typing.Dict[str,str]:
     """
     Returns {[repoPath],[githubDomain],[githubUser],'githubProject'}
     """
@@ -243,7 +261,7 @@ def findRepoInfo(localRepoPath:str)->typing.Dict[str,str]:
     return ret
 
 def githubBlameUrl(
-    localRepoPath:typing.Union[str,FileLocation],
+    localRepoPath:typing.Union[str,FileLocation,UrlCompatible],
     commitHash:str='master',
     )->URL:
     """
@@ -258,8 +276,16 @@ def githubBlameUrl(
         if blank, use the current file
     """
     if isinstance(localRepoPath,FileLocation):
+        if localRepoPath.filename is None:
+            raise FileNotFoundError('No git directory specified')
         localRepoPath=localRepoPath.filename
-    localRepoPath=os.path.abspath(localRepoPath)
+    elif isinstance(localRepoPath,str):
+        localRepoPath=os.path.abspath(localRepoPath)
+    else:
+        localRepoPath=asUrl(localRepoPath).filePath # type: ignore
+        if localRepoPath is None:
+            raise FileNotFoundError('Not a local directory')
+        localRepoPath=str(localRepoPath)
     info=findRepoInfo(localRepoPath)
     repoPath=info['repoPath']
     repoRelativePath=localRepoPath[len(repoPath):].replace(os.sep,'/')
@@ -288,8 +314,11 @@ def githubGithubCommitHistoryUrl(
     Get the url to the github blame viewer
     """
     if isinstance(localRepoPath,FileLocation):
+        if localRepoPath.filename is None:
+            raise FileNotFoundError('No git directory specified')
         localRepoPath=localRepoPath.filename
-    localRepoPath=os.path.abspath(localRepoPath)
+    if isinstance(localRepoPath,str):
+        localRepoPath=os.path.abspath(localRepoPath)
     info=findRepoInfo(localRepoPath)
     if localRepoPath is None:
         localRepoPath=''

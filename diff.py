@@ -12,8 +12,8 @@ if typing.TYPE_CHECKING:
 
 FileMatch=typing.Union[
     str,
-    typing.Pattern,
-    typing.List[typing.Union[str,typing.Pattern]]]
+    typing.Pattern[str],
+    typing.List[typing.Union[str,typing.Pattern[str]]]]
 
 
 class Difference:
@@ -105,9 +105,11 @@ class FileDiff:
         if not self.commit:
             return None
         u=self.commit.githubUrl
+        if u is None:
+            return None
         u=str(u).split('/commit',1)[0]
         u=f'{u}/blob/{self.commit.hash}/data/{self.filename}'
-        return u
+        return Url(u)
 
     def assign(self,data:str)->None:
         """
@@ -171,7 +173,7 @@ class MultifileDiff:
         """
         All of the differences
         """
-        for fd in self.fileDiffs:
+        for fd in self.fileDiffs.values():
             yield from fd.differences
 
     def search(
@@ -182,10 +184,10 @@ class MultifileDiff:
         Get only changes for specific files
         """
         if isinstance(files,str) or hasattr(files,"match"):
-            files=(files,)
-        for fd in self.fileDiffs:
+            files=(files,) # type: ignore
+        for fd in self.fileDiffs.values():
             filename=fd.filename
-            for m in files:
+            for m in files: # type: ignore
                 if isinstance(m,str):
                     if filename==m:
                         yield fd

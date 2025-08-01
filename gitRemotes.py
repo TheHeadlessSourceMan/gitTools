@@ -2,39 +2,56 @@
 Manage remotes for a repo
 """
 import typing
-from paths import URL
-from k_runner import osrun
+from pathlib import Path
+from paths import URL,UrlCompatible
+from k_runner.osrun import osrun
+
+
+class GitRemote:
+    """
+    A git remote location
+    """
+    def __init__(self,name:str,url:UrlCompatible,extra:str):
+        self.name=name
+        self.url=URL(url)
+        self.extra=extra
 
 
 def listGitRemotes(
-    localRepoPath:str
-    )->typing.Iterable[typing.Tuple[str,URL,str]]:
+    localRepoPath:typing.Union[str,Path]
+    )->typing.Iterable[GitRemote]:
     """
     List all remotes for a local repo
     """
     ret=[]
     cmd=['git','remote','-v']
-    result=osrun.osrun(cmd,workingDirectory=localRepoPath)
+    result=osrun(cmd,workingDirectory=localRepoPath)
     for line in result:
         abc=line.split()
         if len(abc)==3:
-            ret.append((
+            ret.append(GitRemote(
                 abc[0],
-                URL(abc[1]),
+                abc[1],
                 abc[2].replace('(','').replace(')','')
                 ))
     return ret
 
-def githubRemote(localRepoPath:str)->typing.Optional[URL]:
+
+def githubRemote(
+    localRepoPath:typing.Union[str,Path]
+    )->typing.Optional[GitRemote]:
     """
     Get the github remote for a local repo
     """
-    for _,remote,_ in listGitRemotes(localRepoPath):
-        if str(remote).find('github')>=0:
+    for remote in listGitRemotes(localRepoPath):
+        if str(remote.url).find('github')>=0:
             return remote
     return None
 
-def githubUrl(localRepoPath:str)->typing.Optional[URL]:
+
+def githubUrl(
+    localRepoPath:typing.Union[str,Path]
+    )->typing.Optional[URL]:
     """
     Get the github url for a local repo
 
@@ -43,8 +60,9 @@ def githubUrl(localRepoPath:str)->typing.Optional[URL]:
     look here to find it.
     """
     cmd=['git','config','--get-regexp','remote.origin.url.*']
-    result=osrun.osrun(cmd,workingDirectory=localRepoPath)
-    result=str(result).strip().split(' ',1)
-    if len(result)>1:
-        return result[1].rsplit('.git',1)[0]
+    result=osrun(cmd,workingDirectory=localRepoPath)
+    resultArray=str(result).strip().split(' ',1)
+    if len(resultArray)>1:
+        result=resultArray[1].rsplit('.git',1)[0]
+        return URL(result)
     return None

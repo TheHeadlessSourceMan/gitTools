@@ -149,8 +149,8 @@ class CommitHistoryToHours:
         """ """
         if isinstance(gitFolders,(str,Url)) \
             or not hasattr(gitFolders,"__iter__"):
-            gitFolders=(gitFolders,)
-        self.gitFolders:typing.List[Url]=[asUrl(url) for url in gitFolders]
+            gitFolders=(gitFolders,) # type: ignore
+        self.gitFolders:typing.List[Url]=[asUrl(url) for url in gitFolders] # type: ignore
         self.fileRates:typing.List[FileRate]=[] # searched IN ORDER! There should always be a ".* at the end # noqa: E501 # pylint: disable=line-too-long
 
     def getFileRate(self,filename:str)->FileRate:
@@ -172,6 +172,8 @@ class CommitHistoryToHours:
             for commit in commits:
                 diff=commit.diff
                 date=diff.date
+                if date is None:
+                    raise Exception('No date for git commit!')
                 for fileDiff in diff:
                     numLines=fileDiff.numLines
                     rate=self.getFileRate(fileDiff.filename)
@@ -215,11 +217,11 @@ def cmdline(args:typing.Iterable[str])->int:
             else:
                 printHelp=True
         else:
-            ch2h.gitFolders.append(arg)
+            ch2h.gitFolders.append(Url(arg))
             gotFolder=True
     if not printHelp:
         if not gotFolder:
-            ch2h.gitFolders.append('.')
+            ch2h.gitFolders.append(Url('.'))
         result=ch2h.calculate()
         if html:
             print(result.html)

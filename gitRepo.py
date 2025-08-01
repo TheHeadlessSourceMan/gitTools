@@ -4,14 +4,14 @@ Wrapper for a git repo
 import typing
 import os
 from stringTools.versions import Version
-from paths import UrlCompatible,URL,asUrl
+from paths import UrlCompatible,URL
 from gitTools.branches import gitAbandonChanges
 from gitTools.commits import (
     findRepoInfo,gitLog,gitCommitsForFunction,gitCommitsForLine)
 from gitTools.gitCommits import GitCommits
 from pullRequests import getPRs
-from tagsAndVersions import gitLatestReleaseVersion, gitTags, gitVersionTags
-from gitRemotes import listGitRemotes
+from tagsAndVersions import gitLatestReleaseVersion,gitTags,gitVersionTags
+from gitRemotes import listGitRemotes,GitRemote,githubUrl
 
 
 class GitRepo:
@@ -21,19 +21,22 @@ class GitRepo:
 
     def __init__(self,
         localRepoPath:str='.',
-        githubUrl:typing.Optional[UrlCompatible]=None):
+        url:typing.Optional[UrlCompatible]=None):
         """ """
-        if githubUrl is None:
-            self.githubUrl=githubUrl(localRepoPath)
+        if url is None:
+            url=githubUrl(localRepoPath)
+            if url is None:
+                raise FileNotFoundError(f'Location "{localRepoPath}" is not a git project') # noqa: E501 # pylint: disable=line-too-long
+            self.githubUrl:URL=url
         else:
-            self.githubUrl=asUrl(githubUrl)
+            self.githubUrl=URL(url)
         localRepoPath=os.path.abspath(os.path.expandvars(localRepoPath))
         self.info=findRepoInfo(localRepoPath)
         if self.info is None:
             msg=f'"{localRepoPath}" is not a valid git repository!'
             raise FileNotFoundError(msg)
         self._remotes:typing.Optional[
-            typing.List[typing.Tuple[str,URL,str]]]=None
+            typing.List[GitRemote]]=None
 
     @property
     def localRepoPath(self)->str:
@@ -143,15 +146,8 @@ class GitRepo:
         List all known remotes of this repo
         """
         if self._remotes is None:
-            self._remotes=listGitRemotes(self.localRepoPath)
-        return self._remotes
-
-    @property
-    def githubUrl(self)->URL:
-        """
-        The base url for this git project on github
-        """
-        return self.info['githubUrl']
+            self._remotes=list(listGitRemotes(self.localRepoPath))
+        return self._remotes # type: ignore
 
     def gitLog(self,moreparams="")->GitCommits:
         """

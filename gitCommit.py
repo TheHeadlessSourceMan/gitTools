@@ -4,7 +4,7 @@ Information about a particular git commit
 """
 import typing
 import datetime
-from paths import URL
+from paths import URL,UrlCompatible,asUrl
 from k_runner.osrun import osrun
 from .diff import MultifileDiff
 
@@ -16,13 +16,13 @@ class GitCommit:
     def __init__(self,
         hash:str, # pylint: disable=W0622
         logEntry:typing.Optional[str]=None,
-        githubUrl:typing.Optional[str]=None):
+        githubUrl:typing.Optional[UrlCompatible]=None):
         """ """
         self.hash=hash
         self._githubUrl:typing.Optional[URL]=None
         if githubUrl is not None:
-            self.githubUrl=githubUrl
-        #self._lines:typing.List[str]=[]
+            self._githubUrl=URL(githubUrl)
+        self._lines:typing.List[str]=[]
         self._gatheringLines=False
         self._gatheringDescription=False
         self._date:typing.Optional[datetime.datetime]=None
@@ -34,14 +34,14 @@ class GitCommit:
             self.assignFromLog(logEntry)
 
     @property
-    def githubUrl(self)->typing.Optional[str]:
+    def githubUrl(self)->typing.Optional[URL]:
         """
         Remote github link to this commit
         """
         return self._githubUrl
     @githubUrl.setter
-    def githubUrl(self,githubUrl:str):
-        sp=str(githubUrl).split('/commit',1)[0]
+    def githubUrl(self,githubUrl:UrlCompatible):
+        sp=str(asUrl(githubUrl)).split('/commit',1)[0]
         githubUrl=f"{sp}/commit/{self.hash}"
         self._githubUrl=URL(githubUrl)
 
@@ -61,7 +61,7 @@ class GitCommit:
         self.hash:str=""
         self.author:str=""
         self.authorEmail:str=""
-        self.date:typing.Optional[datetime.datetime]=None
+        self.date=None
 
     def assignFromLog(self,logEntry:str):
         """
@@ -79,13 +79,13 @@ class GitCommit:
                 self.date=line.split(' ',1)[1].strip()
 
     @property
-    def date(self)->datetime.datetime:
+    def date(self)->typing.Optional[datetime.datetime]:
         """
         The full date of this commit
         """
         return self._date
     @date.setter
-    def date(self,d:typing.Union[datetime.datetime,str]):
+    def date(self,d:typing.Union[None,datetime.datetime,str]):
         if isinstance(d,str):
             d=datetime.datetime.strptime(d,r"%a %b %-d %-H:%M:%S %Y %z")
         self._date=d
@@ -100,7 +100,7 @@ class GitCommit:
         return self._date.timestamp()
 
     # can compare against other GitCommitInfo or a datetime
-    def __eq__(self,
+    def __eq__(self, # type: ignore
         other:typing.Union["GitCommit",datetime.datetime] # type: ignore
         )->bool:
         if isinstance(other,datetime.datetime):
@@ -189,6 +189,6 @@ def getAllCommits(
     """
     cmd="git log"
     results=osrun(cmd,workingDirectory=localRepo)
-    gitLog=results.stdout()
+    gitLog=str(results)
     for entry in gitLog.replace('\r','').split('\n\n'):
         yield GitCommit(entry)

@@ -49,14 +49,22 @@ class GitCommits:
         """
         if self._githubRemote is None:
             if self.repoPath is not None:
-                self._githubRemote=githubUrl(self.repoPath)
+                self._githubRemote=githubUrl(self.repoPath) # type: ignore
         return self._githubRemote
 
     def __len__(self)->int:
         return len(self._commits)
-    def __getitem__(self,idx)->GitCommit:
+    @typing.overload
+    def __getitem__(self,idx:slice)->typing.Iterable[GitCommit]:
+        ...
+    @typing.overload
+    def __getitem__(self,idx:int)->GitCommit:
+        ...
+    def __getitem__(self,
+        idx:typing.Union[int,slice]
+        )->typing.Union[GitCommit,typing.Iterable[GitCommit]]:
         return self._commits[idx]
-    def __iter__(self)->typing.Iterable[GitCommit]:
+    def __iter__(self)->typing.Iterator[GitCommit]:
         return iter(self._commits)
     def append(self,commits:GitCommitsCompatible)->None:
         """
