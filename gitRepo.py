@@ -12,6 +12,7 @@ from gitTools.gitCommits import GitCommits
 from pullRequests import getPRs
 from tagsAndVersions import gitLatestReleaseVersion,gitTags,gitVersionTags
 from gitRemotes import listGitRemotes,GitRemote,githubUrl
+from .diff import MultifileDiff
 
 
 class GitRepo:
@@ -162,6 +163,23 @@ class GitRepo:
         Return a list of all connits for this project
         """
         return self.gitLog()
+
+    @property
+    def differencesFromMaster(self,
+        masterBranch:str='origin/master'
+        )->MultifileDiff:
+        """
+        Return all commits of the current branch
+        that are not yet in master.
+        """
+        #from k_runner import osrun
+        import subprocess
+        cmd=['git','diff',masterBranch]
+        #result=osrun(cmd,workingDirectory=self.localRepoPath,shell=True)
+        out,_=subprocess.Popen(cmd,shell=True,cwd=str(self.localRepoPath),
+            stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()
+        result=out.decode('utf-8',errors='ignore')
+        return MultifileDiff(result)
 
     def commitsForLine(self,
         repoFilename:str,

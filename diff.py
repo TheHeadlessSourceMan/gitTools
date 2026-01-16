@@ -6,8 +6,10 @@ TODO: should probably be moved to codeTools or something
 import typing
 import datetime
 from paths import Url
+from .difference import Difference,DifferenceType
 if typing.TYPE_CHECKING:
     from gitTools.gitCommit import GitCommit
+    from .change import ChangeLocation
 
 
 FileMatch=typing.Union[
@@ -16,73 +18,7 @@ FileMatch=typing.Union[
     typing.List[typing.Union[str,typing.Pattern[str]]]]
 
 
-class Difference:
-    """
-    A single difference within a diff file
-    """
-    TYPE_NONE=0
-    TYPE_ADD=1
-    TYPE_REMOVE=2
-    TYPE_UPDATE=3
-
-    def __init__(self,data:str):
-        self._data:str=data
-        self.differenceType:int=self.TYPE_ADD
-        self.old:typing.List[str]=[]
-        self.new:typing.List[str]=[]
-        self.oldContext:typing.List[str]=[]
-        self.newContext:typing.List[str]=[]
-        self.oldPosition:typing.Tuple[int,int]=(0,0)
-        self.newPosition:typing.Tuple[int,int]=(0,0)
-        self.scope:str=""
-        #self.fileLocation:FileLocation=""
-        self.assign(data)
-
-    def assign(self,data:str)->None:
-        """
-        assign data to this object
-        """
-        self._data=data
-        gotFirstLine=False
-        self.differenceType=self.TYPE_NONE
-        for line in data.split('\n'):
-            if not gotFirstLine:
-                if line.startswith('@@ '):
-                    locationScope=line.split('@@',2)
-                    oldLocationNewLocation=locationScope[1].strip().split()
-                    loc=oldLocationNewLocation[0].split(',')
-                    self.oldLocation=(int(loc[0][1:]),int(loc[1]))
-                    loc=oldLocationNewLocation[1].split(',')
-                    self.newLocation=(int(loc[0][1:]),int(loc[1]))
-                    self.scope=locationScope[2].strip()
-                    gotFirstLine=True
-            else:
-                if line.startswith('  '): # common context
-                    self.oldContext.append(line)
-                    self.newContext.append(line)
-                elif line.startswith('+ '): # new line
-                    self.new.append(line)
-                    self.newContext.append(line)
-                    self.differenceType|=self.TYPE_ADD
-                elif line.startswith('- '): # old line
-                    self.old.append(line)
-                    self.oldContext.append(line)
-                    self.differenceType|=self.TYPE_REMOVE
-                elif line.startswith('@@ '): # next diff
-                    break
-                else: # blank line
-                    self.oldContext.append(line)
-                    self.newContext.append(line)
-
-    @property
-    def numLines(self)->int:
-        """
-        number of lines affected
-        """
-        return max(len(self.old),len(self.new))
-
-
-class FileDiff:
+class FileDifferences:
     """
     Diff of a single file
     """
@@ -92,10 +28,52 @@ class FileDiff:
         """
         """
         self._data:str=data
-        self.filename:str=""
+        self.url:Url=Url("")
         self.differences:typing.List[Difference]=[]
         self.commit=commit
         self.assign(data)
+
+    def getDifferencesByType(self,
+        insertions:bool=True,
+        modifications:bool=True,
+        deletions:bool=True
+        )->typing.Generator[Difference,None,None]:
+        """
+        Get all differences of a given type
+        """
+        for difference in self.differences:
+            if insertions and difference.differenceType==DifferenceType.TYPE_ADD:
+                yield difference
+            if modifications and difference.differenceType==DifferenceType.TYPE_MODIFY:
+                yield difference
+            if deletions and difference.differenceType==DifferenceType.TYPE_REMOVE:
+                yield difference
+
+    def getChangeLocations(self,
+        insertions:bool=True,
+        modifications:bool=True,
+        deletions:bool=True,
+        before:bool=False,
+        after:bool=True
+        )->typing.Generator['ChangeLocation',None,None]:
+        """
+        Get all changes
+        """
+        # make sure the logic makes sense
+        if not before:
+            deletions=False
+        if not after:
+            insertions=False
+        for difference in self.getDifferencesByType(insertions,modifications,deletions):
+            yield from difference.getChangeLocations(before,after)
+    getChanges=getChangeLocations
+
+    @property
+    def filename(self)->Url:
+        """
+        Filename
+        """
+        return self.url
 
     @property
     def githubUrl(self)->typing.Optional[Url]:
@@ -116,9 +94,9 @@ class FileDiff:
         assign data to this object
         """
         self._data=data
-        self.filename=data.split(' b/',1)[-1].split('\n',1)[0]
+        self.url=Url(data.split(' b/',1)[-1].split('\n',1)[0])
         for s in data.split('\n@@ ')[1:]:
-            self.differences.append(Difference('@@ '+s))
+            self.differences.append(Difference(self,'@@ '+s))
 
     @property
     def numLines(self)->int:
@@ -127,6 +105,86 @@ class FileDiff:
         (added,removed,or changed)
         """
         return sum(d.numLines for d in self.differences)
+
+    def asDiffStr(self,
+        colorize:typing.Union[None,typing.Literal['ansi'],typing.Literal['html']]=None,
+        includeDiffMarkers:bool=True
+        )->str:
+        """
+        Get this as a standard diff string
+        """
+        if colorize is None:
+            return self.asPlainDiffStr(includeDiffMarkers=includeDiffMarkers)
+        elif colorize=='html':
+            return self.asAnsiDiffStr(includeDiffMarkers=includeDiffMarkers)
+        return self.asHtmlDiffStr(includeDiffMarkers=includeDiffMarkers)
+
+    def asAnsiDiffStr(self,
+        includeDiffMarkers:bool=True
+        )->str:
+        """
+        Get this as a standard diff string with ansi color codes
+        """
+        from stringTools import ANSI_COLORS
+        removed=ANSI_COLORS.ANSI_RED.value
+        added=ANSI_COLORS.ANSI_GREEN.value
+        off=ANSI_COLORS.ANSI_OFF.value
+        filename=str(self.url)
+        ret=f'{removed}--- {filename}{off}\n{added}+++ {filename}{off}\n'
+        return ret+('\n'.join([d.asAnsiDiffStr(includeDiffMarkers) for d in self.differences]))
+
+    def asHtmlDiffStr(self,
+        scopeColor:str="#77c6ff",
+        addColor:str="#00FF00",
+        removeColor:str="#FF0000",
+        includeDiffMarkers:bool=True
+        )->str:
+        """
+        Get this as a standard diff string with html colorization
+        """
+        filename=str(self.url)
+        ret=['<div>']
+        ret.append(f'<div style="color:{removeColor}">--- {filename}</div>')
+        ret.append(f'<div style="color:{addColor}">+++ {filename}</div>')
+        ret.extend([
+            d.asHtmlDiffStr(scopeColor,addColor,removeColor,includeDiffMarkers)
+            for d in self.differences])
+        ret.append('</div>')
+        return '\n'.join(ret)
+    @property
+    def html(self)->str:
+        """
+        Get this as a standard diff string with html colorization
+        """
+        return self.asHtmlDiffStr()
+
+    def asPlainDiffStr(self,
+        includeDiffMarkers:bool=True
+        )->str:
+        """
+        Get this as a standard diff string
+        """
+        filename=str(self.url)
+        ret=f'--- {filename}\n+++ {filename}\n'
+        return ret+('\n'.join([d.asPlainDiffStr(includeDiffMarkers) for d in self.differences]))
+
+    @property
+    def diffStr(self)->str:
+        """
+        Get the difference as a string
+        """
+        return self.asDiffStr()
+    @diffStr.setter
+    def diffStr(self,diffStr:str):
+        self.assign(diffStr)
+
+    def __str__(self)->str:
+        return self.asDiffStr()
+
+    def __repr__(self)->str:
+        ret=f'--- {self.url}\n+++ {self.url}'
+        return ret+('\n'.join([repr(d) for d in self.differences]))
+FileDiff=FileDifferences
 
 
 class MultifileDiff:
@@ -143,11 +201,36 @@ class MultifileDiff:
         self.commit=commit
         self._data=data
         self.date=date
-        self.fileDiffs:typing.Dict[str,FileDiff]={}
+        self.fileDiffs:typing.Dict[Url,FileDifferences]={}
         self.assign(data)
 
-    def __iter__(self)->typing.Iterator[FileDiff]:
+    def __iter__(self)->typing.Iterator[FileDifferences]:
         return iter(self.fileDiffs.values())
+
+    def getDifferencesByType(self,
+        insertions:bool=True,
+        modifications:bool=True,
+        deletions:bool=True
+        )->typing.Generator[Difference,None,None]:
+        """
+        Get all differences of a given type
+        """
+        for fileDiff in self.fileDiffs.values():
+            yield from fileDiff.getDifferencesByType(insertions,modifications,deletions)
+
+    def getChangeLocations(self,
+        insertions:bool=True,
+        modifications:bool=True,
+        deletions:bool=True,
+        before:bool=False,
+        after:bool=True
+        )->typing.Generator['ChangeLocation',None,None]:
+        """
+        Get all changes
+        """
+        for fileDiff in self.fileDiffs.values():
+            yield from fileDiff.getChangeLocations(insertions,modifications,deletions,before,after)
+    getChanges=getChangeLocations
 
     @property
     def githubUrl(self)->typing.Optional[Url]:
@@ -164,7 +247,7 @@ class MultifileDiff:
         """
         self._data=data
         for f in data.split("\ndiff --git "):
-            fd=FileDiff("diff --git "+f,commit=self.commit)
+            fd=FileDifferences("diff --git "+f,commit=self.commit)
             setattr(fd,"date",self.date)
             self.fileDiffs[fd.filename]=fd
 
@@ -176,10 +259,17 @@ class MultifileDiff:
         for fd in self.fileDiffs.values():
             yield from fd.differences
 
+    @property
+    def changedFiles(self)->typing.Generator[Url,None,None]:
+        """
+        List of all changed files
+        """
+        yield from self.fileDiffs
+
     def search(
         self,
         files:FileMatch
-        )->typing.Generator[FileDiff,None,None]:
+        )->typing.Generator[FileDifferences,None,None]:
         """
         Get only changes for specific files
         """
@@ -202,5 +292,60 @@ class MultifileDiff:
         """
         return sum(fd.numLines for fd in self.fileDiffs.values())
 
+    def asDiffStr(self,
+        colorize:typing.Union[None,typing.Literal['ansi'],typing.Literal['html']]=None,
+        includeDiffMarkers:bool=True
+        )->str:
+        """
+        Get this as a standard diff string
+        """
+        if colorize is None:
+            return self.asPlainDiffStr(includeDiffMarkers=includeDiffMarkers)
+        elif colorize=='html':
+            return self.asAnsiDiffStr(includeDiffMarkers=includeDiffMarkers)
+        return self.asHtmlDiffStr(includeDiffMarkers=includeDiffMarkers)
+
+    def asAnsiDiffStr(self,
+        includeDiffMarkers:bool=True
+        )->str:
+        """
+        Get this as a standard diff string with ansi color codes
+        """
+        return '\n\n'.join([
+            fd.asAnsiDiffStr(includeDiffMarkers)
+            for fd in self.fileDiffs.values()])
+
+    def asHtmlDiffStr(self,
+        scopeColor:str="#77c6ff",
+        addColor:str="#00FF00",
+        removeColor:str="#FF0000",
+        includeDiffMarkers:bool=True
+        )->str:
+        """
+        Get this as a standard diff string with html colorization
+        """
+        return '\n\n'.join([
+            fd.asHtmlDiffStr(scopeColor,addColor,removeColor,includeDiffMarkers)
+            for fd in self.fileDiffs.values()])
+    @property
+    def html(self)->str:
+        """
+        Get this as a standard diff string with html colorization
+        """
+        return self.asHtmlDiffStr()
+
+    def asPlainDiffStr(self,
+        includeDiffMarkers:bool=True
+        )->str:
+        """
+        Get this as a standard diff string
+        """
+        return '\n\n'.join([
+            fd.asPlainDiffStr(includeDiffMarkers)
+            for fd in self.fileDiffs.values()])
+
     def __repr__(self):
-        return '\n'.join(self.fileDiffs.keys())
+        return '\n\n'.join([repr(k) for k in self.fileDiffs])
+
+    def __str__(self):
+        return self.asAnsiDiffStr()
