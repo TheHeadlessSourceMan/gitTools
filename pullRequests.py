@@ -12,11 +12,14 @@ from gitTools.branches import sanitizeBranchName,branchHyperlink
 def createPRBranch(
     upstreamBranchLocation:typing.Union[str,Path,UrlCompatible],
     branchName:str,
-    printCb:typing.Optional[typing.Callable[[str],None]]=None
+    printCb:typing.Optional[typing.Callable[[str],None]]=None,
+    existingOk:bool=False
     )->None:
     """
     Creates a new branch on upstream, off upstream/master
     the purpose of this branch is to push incremental PR's to for easier review
+
+    :existingOk: is it ok if we cannot create the branch because it already exists?
     """
     if printCb is None:
         printCb=print
@@ -29,10 +32,13 @@ def createPRBranch(
             stderrLineCallbacks=printCb))
     if not result.succeeded:
         err=result.err.strip()
-        if err.startswith("Switched to a new branch "):
+        if not err or err.startswith("Switched to a new branch "):
             # Don't know why this acts like an error message, since
             # it's what we were trying to do. Thanks, git.
             pass
+        elif existingOk and err.find(' already exists')>=0:
+            print(f'Branch "{branchName}" already exists.  Skipping.')
+            return
         else:
             raise Exception(err)
     printCb('Pushing branch...')
