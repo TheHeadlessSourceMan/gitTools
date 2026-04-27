@@ -3,8 +3,9 @@ Manage remotes for a repo
 """
 import typing
 from pathlib import Path
-from paths import URL,UrlCompatible
+from paths import URL,UrlCompatible,asUrl
 from k_runner.osrun import osrun
+from gitTools.exceptions import GitException
 
 
 class GitRemote:
@@ -35,6 +36,20 @@ def listGitRemotes(
                 abc[2].replace('(','').replace(')','')
                 ))
     return ret
+
+
+def addGitRemote(
+    localRepoPath:typing.Union[str,Path],
+    name:str,
+    url:UrlCompatible):
+    """
+    Add a new git remote
+    """
+    cmd=['git','remote','add',name,str(asUrl(url))]
+    result=osrun(cmd,workingDirectory=localRepoPath)
+    out=result.stdOutErr
+    if out.find('\nfatal: ')>=0:
+        raise GitException(out)
 
 
 def githubRemote(

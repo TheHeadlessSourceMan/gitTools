@@ -1,6 +1,7 @@
 """
 Tools for working with git/github source control
 """
+from gitTools.exceptions import *
 from gitTools.commits import *
 from gitTools.branches import *
 from gitTools.pullRequests import *

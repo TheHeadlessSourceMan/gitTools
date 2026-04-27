@@ -2,17 +2,18 @@
 Wrapper for a git repo
 """
 import typing
-import os
 from stringTools.versions import Version
-from paths import UrlCompatible,URL
+from paths import (
+    UrlCompatible,URL,FileUrlCompatible,FileUrl,FilePathCompatible)
 from gitTools.branches import gitAbandonChanges
 from gitTools.commits import (
     findRepoInfo,gitLog,gitCommitsForFunction,gitCommitsForLine)
 from gitTools.gitCommits import GitCommits
 from pullRequests import getPRs
 from tagsAndVersions import gitLatestReleaseVersion,gitTags,gitVersionTags
-from gitRemotes import listGitRemotes,GitRemote,githubUrl
+from gitRemotes import addGitRemote, listGitRemotes,GitRemote,githubUrl
 from .diff import MultifileDiff
+from .exceptions import GitException
 
 
 class GitRepo:
@@ -21,7 +22,7 @@ class GitRepo:
     """
 
     def __init__(self,
-        localRepoPath:str='.',
+        localRepoPath:FileUrlCompatible='.',
         url:typing.Optional[UrlCompatible]=None):
         """ """
         if url is None:
@@ -31,26 +32,26 @@ class GitRepo:
             self.githubUrl:URL=url
         else:
             self.githubUrl=URL(url)
-        localRepoPath=os.path.abspath(os.path.expandvars(localRepoPath))
-        self.info=findRepoInfo(localRepoPath)
+        self._localRepoPath=FileUrl(localRepoPath,shellReplace=True).absolute()
+        self.info=findRepoInfo(self._localRepoPath)
         if self.info is None:
-            msg=f'"{localRepoPath}" is not a valid git repository!'
+            msg=f'"{self._localRepoPath}" is not a valid git repository!'
             raise FileNotFoundError(msg)
         self._remotes:typing.Optional[
             typing.List[GitRemote]]=None
 
     @property
-    def localRepoPath(self)->str:
+    def localRepoPath(self)->FileUrl:
         """
         Get the local path to the repo
         """
-        return self.info['repoPath']
+        return self._localRepoPath
     @property
-    def repoPath(self)->str:
+    def repoPath(self)->FileUrl:
         """
         Get the local path to the repo
         """
-        return self.info['repoPath']
+        return self._localRepoPath
 
     def goToGithub(self,additional="")->None:
         """
@@ -142,13 +143,35 @@ class GitRepo:
         self.goToGithub(f'releases/tag/{tag}')
 
     @property
-    def remotes(self)->typing.Iterable[typing.Tuple[str,URL,str]]:
+    def remotes(self)->typing.Iterable[GitRemote]:
         """
         List all known remotes of this repo
         """
         if self._remotes is None:
             self._remotes=list(listGitRemotes(self.localRepoPath))
         return self._remotes # type: ignore
+
+    @property
+    def upstream(self)->typing.Optional[GitRemote]:
+        """
+        Get/set the upstream remote
+        """
+        for remote in self.remotes:
+            if remote.name=='upstream':
+                return remote
+        return None
+    @upstream.setter
+    def upstream(self,upstream:typing.Union[UrlCompatible,GitRemote]):
+        if isinstance(upstream,GitRemote):
+            upstream=upstream.url
+
+    def addGitRemote(self,name:str,url:UrlCompatible):
+        """
+        Add a new git remote
+        """
+        addGitRemote(self.localRepoPath,name,url)
+        self._remotes=None # must be reloaded
+    addRemote=addGitRemote
 
     def gitLog(self,moreparams="")->GitCommits:
         """
@@ -165,20 +188,50 @@ class GitRepo:
         return self.gitLog()
 
     @property
-    def differencesFromMaster(self,
-        masterBranch:str='origin/master'
-        )->MultifileDiff:
+    def differencesFromMaster(self):
         """
         Return all commits of the current branch
         that are not yet in master.
         """
+        return self.differencesFromBranch('origin/master')
+
+    @property
+    def differencesFromUpstream(self):
+        """
+        Return all commits of the current branch
+        that are not yet in the upstream fork.
+        """
+        try:
+            return self.differencesFromBranch('upstream')
+        except GitException as e:
+            if str(e).find("fatal: 'upstream' does not appear to be a git repository")>=0:
+                msg="""upstream repositry is not set.  Either:
+                    a) in python gitRepo.upstream="https://girhub.com/REPO_MAINTAINER/REPO.git"
+                    b) or run:
+                        git remote add upstream https://github.com/REPO_MAINTAINER/REPO.git
+                        git fetch upstream
+                    """
+                raise GitException(msg) from e
+            raise e
+
+    def differencesFromBranch(self,
+        branchName:str
+        )->MultifileDiff:
+        """
+        Return all commits of the current branch
+        that are not in a selected branch.
+        """
         #from k_runner import osrun
         import subprocess
-        cmd=['git','diff',masterBranch]
+        cmd=['git','diff',branchName]
         #result=osrun(cmd,workingDirectory=self.localRepoPath,shell=True)
         out,_=subprocess.Popen(cmd,shell=True,cwd=str(self.localRepoPath),
             stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()
         result=out.decode('utf-8',errors='ignore')
+        if result.find('\nfatal: '):
+            # I'm no doctor, but...
+            # anything fatal is not good for your health
+            raise GitException(result)
         return MultifileDiff(result)
 
     def commitsForLine(self,

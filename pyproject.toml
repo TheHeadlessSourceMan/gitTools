@@ -1,0 +1,16 @@
+[project]
+name="gitTools"
+version="1.0.0.0"
+description = "Tools for working with git/github source control"
+readme="README.md"
+requires-python = ">= 3.8"
+authors = [{name = "KC Eilander"}]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords=[]
+
+[project.urls]
+Homepage = "https://github.com/TheHeadlessSourceMan/todoPlugins"
+
+[project.entry-points."codeTools.plugin"]
+#projectTodoPlugin='projectTodoPlugin:ProjectTodos'
