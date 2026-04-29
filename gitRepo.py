@@ -21,6 +21,9 @@ class GitRepo:
     Wrapper for a git repo
     """
 
+    MASTER_BRANCH_NAME='origin/master'
+    UPSTREAM_BRANCH_NAME='upstream'
+
     def __init__(self,
         localRepoPath:FileUrlCompatible='.',
         url:typing.Optional[UrlCompatible]=None):
@@ -193,7 +196,7 @@ class GitRepo:
         Return all commits of the current branch
         that are not yet in master.
         """
-        return self.differencesFromBranch('origin/master')
+        return self.differencesFromBranch(self.MASTER_BRANCH_NAME)
 
     @property
     def differencesFromUpstream(self):
@@ -201,18 +204,7 @@ class GitRepo:
         Return all commits of the current branch
         that are not yet in the upstream fork.
         """
-        try:
-            return self.differencesFromBranch('upstream')
-        except GitException as e:
-            if str(e).find("fatal: 'upstream' does not appear to be a git repository")>=0:
-                msg="""upstream repositry is not set.  Either:
-                    a) in python gitRepo.upstream="https://girhub.com/REPO_MAINTAINER/REPO.git"
-                    b) or run:
-                        git remote add upstream https://github.com/REPO_MAINTAINER/REPO.git
-                        git fetch upstream
-                    """
-                raise GitException(msg) from e
-            raise e
+        return self.differencesFromBranch(self.UPSTREAM_BRANCH_NAME)
 
     def differencesFromBranch(self,
         branchName:str
@@ -220,6 +212,8 @@ class GitRepo:
         """
         Return all commits of the current branch
         that are not in a selected branch.
+
+        To get these sorted by file, you can use getFileDiffs().
         """
         #from k_runner import osrun
         import subprocess
@@ -231,6 +225,15 @@ class GitRepo:
         if result.find('\nfatal: '):
             # I'm no doctor, but...
             # anything fatal is not good for your health
+            if branchName==self.UPSTREAM_BRANCH_NAME\
+                and result.find("fatal: 'upstream' does not appear to be a git repository")>=0:
+                msg="""upstream repositry is not set.  Either:
+                    a) in python gitRepo.upstream="https://girhub.com/REPO_MAINTAINER/REPO.git"
+                    b) or run:
+                        git remote add upstream https://github.com/REPO_MAINTAINER/REPO.git
+                        git fetch upstream
+                    """
+                raise GitException(msg)
             raise GitException(result)
         return MultifileDiff(result)
 
