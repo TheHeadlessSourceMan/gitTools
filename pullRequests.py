@@ -2,7 +2,7 @@
 Tools for managing pull requests
 """
 import typing
-from paths import FilePath, FilePathCompatible, UrlCompatible, asFilePath,asUrl,asPathlibPath
+from paths import FilePathCompatible,UrlCompatible,asFilePath,asUrl,asPathlibPath
 from k_runner.osrun import osrun
 from k_runner import ApplicationCallbacks
 from gitTools.branches import sanitizeBranchName,branchHyperlink
