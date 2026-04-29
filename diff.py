@@ -207,6 +207,12 @@ class MultifileDiff:
     def __iter__(self)->typing.Iterator[FileDifferences]:
         return iter(self.fileDiffs.values())
 
+    def items(self)->typing.Iterator[typing.Tuple[Url,FileDifferences]]:
+        """
+        Iterate over filename,items like a dict
+        """
+        return self.fileDiffs.items() # type: ignore
+
     def getDifferencesByType(self,
         insertions:bool=True,
         modifications:bool=True,
