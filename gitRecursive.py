@@ -4,8 +4,8 @@ information is fetched.  Anything that has code, but no
 git information is reported.
 """
 import typing
-from pathlib import Path
 import subprocess
+from paths import FilePath, FilePathCompatible,asFilePath
 
 
 codeExtensions=(
@@ -18,7 +18,7 @@ codeExtensions=(
 
 
 def gitRecursive(
-    startingLocation:typing.Union[str,Path]='.',
+    startingLocation:FilePathCompatible='.',
     fetch:bool=True,
     sync:bool=False
     )->typing.Dict[str,typing.List[str]]:
@@ -39,12 +39,11 @@ def gitRecursive(
     need_checkin=[]
     no_git=[]
     synced=[]
-    if not isinstance(startingLocation,Path):
-        if startingLocation is None or not startingLocation:
-            startingLocation='.'
-        startingLocation=Path(startingLocation)
+    if startingLocation is None or not startingLocation:
+        startingLocation='.'
+    startingLocation=asFilePath(startingLocation)
     startingLocation=startingLocation.absolute()
-    def r(location:Path):
+    def r(location:FilePath):
         if (location/'.git').is_dir():
             # this is a git project
             fetchOk=False

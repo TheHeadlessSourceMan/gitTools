@@ -2,14 +2,14 @@
 Tools for working with git tags and versions
 """
 import typing
-from paths import URL
+from paths import URL,FilePathCompatible
 from k_runner.osrun import osrun
-from stringTools.versions import Version, VersionCompatible, asVersion
+from stringTools.versions import Version,VersionCompatible,asVersion
 from gitTools.gitCommit import GitCommit
-from gitTools.commits import findRepoPath, gitLog, findRepoInfo
+from gitTools.commits import findRepoPath,gitLog,findRepoInfo
 
 
-def gitTags(localRepoPath:str='.')->typing.List[str]:
+def gitTags(localRepoPath:FilePathCompatible='.')->typing.List[str]:
     """
     List all the tags associated with a git repo
     """
@@ -19,7 +19,7 @@ def gitTags(localRepoPath:str='.')->typing.List[str]:
     return result.stdouterr.split('\n')
 
 
-def gitVersionTags(localRepoPath:str='.')->typing.List[Version]:
+def gitVersionTags(localRepoPath:FilePathCompatible='.')->typing.List[Version]:
     """
     Similar to gitTags, but drops everything that doesn't look like a version
     and returns a list of version structs in descending order
@@ -36,7 +36,7 @@ def gitVersionTags(localRepoPath:str='.')->typing.List[Version]:
     return ret
 
 
-def gitLatestReleaseVersion(localRepoPath:str='.')->Version:
+def gitLatestReleaseVersion(localRepoPath:FilePathCompatible='.')->Version:
     """
     takes the version tags from gitVersionTags() and returns
     the first one that is a release version

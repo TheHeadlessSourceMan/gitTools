@@ -4,7 +4,7 @@ Wrapper for a git repo
 import typing
 from stringTools.versions import Version
 from paths import (
-    UrlCompatible,URL,FileUrlCompatible,FileUrl,FilePathCompatible)
+    UrlCompatible,URL,FileUrlCompatible,FileUrl)
 from gitTools.branches import gitAbandonChanges
 from gitTools.commits import (
     findRepoInfo,gitLog,gitCommitsForFunction,gitCommitsForLine)
@@ -235,7 +235,7 @@ class GitRepo:
         return MultifileDiff(result)
 
     def commitsForLine(self,
-        repoFilename:str,
+        repoFilename:FileUrlCompatible,
         startLine:int,
         endLine:typing.Optional[int]=None,
         offset:int=0
@@ -247,7 +247,9 @@ class GitRepo:
             self.localRepoPath,repoFilename,startLine,endLine,offset)
     gitCommitsForLine=commitsForLine
 
-    def commitsForFunction(self,repoFilename:str,functionName:str)->GitCommits:
+    def commitsForFunction(self,
+        repoFilename:FileUrlCompatible,functionName:str
+        )->GitCommits:
         """
         Get all commits that affect a particular function
         """

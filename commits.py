@@ -5,14 +5,15 @@ import typing
 import os
 import datetime
 import subprocess
-from paths import URL,FileLocation,UrlCompatible,asUrl
+from paths import (
+    URL,FileLocation,UrlCompatible,asFilePath,asUrl,FilePathCompatible)
 from k_runner.osrun import osrun
 from gitTools.gitCommit import GitCommit
 from gitTools.gitCommits import GitCommits
 from gitTools.gitRemotes import githubUrl
 
 
-def gitLog(localRepoPath:UrlCompatible,moreparams="")->GitCommits:
+def gitLog(localRepoPath:FilePathCompatible,moreparams:str="")->GitCommits:
     """
     get a git log and pythonify the results
 
@@ -66,8 +67,8 @@ def gitLog(localRepoPath:UrlCompatible,moreparams="")->GitCommits:
 
 
 def gitCommitsForFunction(
-    localRepoPath:str,
-    repoFilename:str,
+    localRepoPath:FilePathCompatible,
+    repoFilename:FilePathCompatible,
     functionName:str
     )->GitCommits:
     """
@@ -75,11 +76,10 @@ def gitCommitsForFunction(
     """
     # See also:
     #   https://git-scm.com/docs/git-log
-    localRepoPath_universal=localRepoPath.replace(os.sep,'/')
-    if repoFilename.startswith(localRepoPath_universal):
-        repoFilename=repoFilename[len(localRepoPath_universal):]
+    localRepoPath=asFilePath(localRepoPath)
+    repoFilename=asFilePath(repoFilename).getRelativeTo(localRepoPath)
     cmd=('git','log',f'-L:{functionName}:{repoFilename}')
-    po=subprocess.Popen(cmd,cwd=localRepoPath,
+    po=subprocess.Popen(cmd,cwd=str(localRepoPath),
         stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     out,err=po.communicate()
     err=err.strip()
@@ -88,8 +88,9 @@ def gitCommitsForFunction(
     return GitCommits(gitLogOutput=out.decode('utf-8'))
 
 
-def gitCommitsForLine(localRepoPath:str,
-    repoFilename:str,
+def gitCommitsForLine(
+    localRepoPath:FilePathCompatible,
+    repoFilename:FilePathCompatible,
     startLine:int,endLine:typing.Optional[int]=None,
     offset:int=0)->GitCommits:
     """
@@ -100,9 +101,8 @@ def gitCommitsForLine(localRepoPath:str,
     """
     # See also:
     #   https://git-scm.com/docs/git-log
-    localRepoPath_universal=localRepoPath.replace(os.sep,'/')
-    if repoFilename.startswith(localRepoPath_universal):
-        repoFilename=repoFilename[len(localRepoPath_universal):]
+    localRepoPath=asFilePath(localRepoPath)
+    repoFilename=asFilePath(repoFilename).getRelativeTo(localRepoPath)
     if endLine is not None:
         cmd=('git','log',f'-L:{startLine},{endLine}:{repoFilename}')
     elif offset!=0:
@@ -123,7 +123,7 @@ gitCommitsForLines=gitCommitsForLine
 
 
 def gitGrep(find:str,
-    gitCheckouPath:str,
+    gitCheckouPath:FilePathCompatible,
     )->typing.Generator[typing.Dict[str,typing.Any],None,None]:
     """
     Grep the git log to find some particular thing
@@ -169,7 +169,7 @@ def gitGrep(find:str,
 
 
 def githubFileReferenceUrl(
-    localRepoPath:typing.Union[UrlCompatible,FileLocation],
+    localRepoPath:FilePathCompatible,
     lineNumber:int=0,
     commitHash:str='master',
     )->URL:
@@ -207,7 +207,7 @@ def githubFileReferenceUrl(
     return URL(ret)
 
 
-def findRepoPath(localRepoPath:UrlCompatible)->typing.Optional[str]:
+def findRepoPath(localRepoPath:FilePathCompatible)->typing.Optional[str]:
     """
     traverse up the file tree until you find a path with .git directory in it
 

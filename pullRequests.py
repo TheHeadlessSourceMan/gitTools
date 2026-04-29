@@ -2,15 +2,14 @@
 Tools for managing pull requests
 """
 import typing
-from pathlib import Path
-from paths import UrlCompatible,asUrl,asPathlibPath
+from paths import FilePath, FilePathCompatible, UrlCompatible, asFilePath,asUrl,asPathlibPath
 from k_runner.osrun import osrun
 from k_runner import ApplicationCallbacks
 from gitTools.branches import sanitizeBranchName,branchHyperlink
 
 
 def createPRBranch(
-    upstreamBranchLocation:typing.Union[str,Path,UrlCompatible],
+    upstreamBranchLocation:UrlCompatible,
     branchName:str,
     printCb:typing.Optional[typing.Callable[[str],None]]=None,
     existingOk:bool=False
@@ -80,7 +79,7 @@ def prHyperlink(repoUrl:UrlCompatible,prNum:typing.Union[int,str])->str:
 
 
 def getPRs(
-    localRepoPath:typing.Union[None,str,Path,UrlCompatible]=None,
+    localRepoPath:typing.Optional[UrlCompatible]=None,
     author:typing.Optional[str]=None,
     limit:int=30,
     state:str='open',
@@ -129,7 +128,7 @@ def getPRs(
 
 
 def updatePRBranch(
-    upstreamBranchLocation:typing.Union[str,Path,UrlCompatible],
+    upstreamBranchLocation:UrlCompatible,
     branchName:str,
     printCb:typing.Optional[typing.Callable[[str],None]]=None
     )->None:
@@ -190,7 +189,7 @@ def updatePRBranch(
 def checkoutPR(
     prNumber:typing.Union[str,int],
     repo:typing.Optional[str]=None,
-    directory:typing.Union[None,Path,str]=None,
+    toDirectory:typing.Union[None,FilePathCompatible]=None,
     branchName:typing.Optional[str]=None):
     """
     Check out a particular pull request
@@ -204,10 +203,9 @@ def checkoutPR(
         given repo to create it.
     :branchName: optionally, go for a particular branch
     """
-    if directory is None:
-        directory=Path('.')
-    elif not isinstance(directory,Path):
-        directory=asPathlibPath(directory)
+    if toDirectory is None:
+        toDirectory='.'
+    toDirectory=asFilePath(toDirectory)
     if not isinstance(prNumber,int):
         if prNumber.startswith('http'):
             parts=prNumber.rsplit('/pull/',1)
@@ -216,11 +214,11 @@ def checkoutPR(
             prNumber=int(parts[1])
         else:
             prNumber=int(prNumber)
-    if not directory.is_dir():
+    if not toDirectory.is_dir():
         # attempt to clone
-        if repo is None or directory.exists():
-            raise FileNotFoundError(f'ERR: no repo at "{directory}"')
-        cmd=['git','clone',str(repo),str(directory)]
+        if repo is None or toDirectory.exists():
+            raise FileNotFoundError(f'ERR: no repo at "{toDirectory}"')
+        cmd=['git','clone',str(repo),str(toDirectory)]
         result=osrun(cmd)
         print(result.outerr)
     # make sure we are on master

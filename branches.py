@@ -4,20 +4,20 @@ Tools for managing git branches
 import typing
 import os
 import subprocess
-from pathlib import Path
-from paths import UrlCompatible,asUrl
+from paths import UrlCompatible,FileUrlCompatible,asFileUrl,asUrl
 from k_runner.osrun import osrun
 from k_runner import ApplicationCallbacks
 from gitTools.tagsAndVersions import (
     findRepoPath,GitCommit,Version,gitTagToCommit)
 
 
-def gitAbandonChanges(localRepoPath:str)->None:
+def gitAbandonChanges(localRepoPath:FileUrlCompatible)->None:
     """
     Shortcut to abandon all changes.
 
     WARNING: ability to shoot yourself in the foot is very high, here
     """
+    localRepoPath=asFileUrl(localRepoPath)
     cmd=['git','reset','--hard','HEAD']
     result=osrun(cmd,workingDirectory=localRepoPath)
     if result.stderr:
@@ -26,7 +26,7 @@ def gitAbandonChanges(localRepoPath:str)->None:
     _=osrun(cmd,workingDirectory=localRepoPath)
 
 
-def revertCommits(commits:typing.Iterable[str],localRepoPath:str='.'):
+def revertCommits(commits:typing.Iterable[str],localRepoPath:FileUrlCompatible='.'):
     """
     revert a series of commits
 
@@ -130,8 +130,8 @@ def checkoutBranch(
 
 
 def copyOverProjectDefaults(
-    cwd:typing.Union[str,Path],
-    projDefaultsDir:typing.Optional[str]=None
+    cwd:FileUrlCompatible,
+    projDefaultsDir:typing.Optional[UrlCompatible]=None
     )->None:
     """
     Copy project default files over the top of any existing files.
@@ -139,21 +139,18 @@ def copyOverProjectDefaults(
     This is a crude, brute-force way to get a project configured
     the way you want it
     """
-    import shutil
     print('copying over project defaults ...')
     if projDefaultsDir is None:
         projDefaultsDir=r"D:\python\data\editor_settings_defaults"
-    print(f'  "{projDefaultsDir}/*" => "{cwd}"')
-    try:
-        shutil.copytree(projDefaultsDir,cwd)
-    except FileExistsError:
-        # if the defaults are already there, that's no bad thing
-        pass
+    projDefaultsDir=asFileUrl(projDefaultsDir)
+    print(f'  Copy project defaults: "{projDefaultsDir}/*" => "{cwd}"')
+    projDefaultsDir.copytree(cwd,overwrite='ignore')
 
 
-def createBranch(swr:str,
+def createBranch(
+    swr:str,
     gitProject='MyProject',
-    gitLocation:typing.Union[str,Path]=r'd:\git',
+    gitLocation:FileUrlCompatible=r'd:\git',
     gitHost:str='github.com',
     gitUser:str='user'
     )->None:
@@ -183,9 +180,7 @@ def createBranch(swr:str,
         print(f'{ANSI_WHITE}{s}')
     def stderrLine(s:str):
         print(f'{ANSI_RED}{s}{ANSI_WHITE}')
-    if not isinstance(gitLocation,Path):
-        gitLocation=Path(gitLocation)
-    gitLocation=gitLocation.absolute()
+    gitLocation=asFileUrl(gitLocation).absolute()
     originBranchUrl=f"https://{gitHost}/{gitUser}/{gitProject}.git"
     if swr.startswith('http'):
         # it's a url like:
