@@ -5,7 +5,7 @@ TODO: should probably be moved to codeTools or something
 """
 import typing
 import datetime
-from paths import Url
+from paths import FileLocationCompatible,asFileLocation,Url
 from .difference import Difference,DifferenceType
 if typing.TYPE_CHECKING:
     from gitTools.gitCommit import GitCommit
@@ -32,6 +32,26 @@ class FileDifferences:
         self.differences:typing.List[Difference]=[]
         self.commit=commit
         self.assign(data)
+
+    def __iter__(self)->typing.Iterator[Difference]:
+        return iter(self.differences)
+
+    def __len__(self)->int:
+        return len(self.differences)
+
+    def getByLocation(self,
+        location:FileLocationCompatible,
+        before:bool=False,
+        after:bool=True):
+        """
+        Get the difference associated with a given location
+        in either the old or new file (depending on inNew)
+        """
+        location=asFileLocation(location)
+        for difference in self.differences:
+            if difference.containsLocation(location,before,after):
+                return difference
+        return None
 
     def getDifferencesByType(self,
         insertions:bool=True,

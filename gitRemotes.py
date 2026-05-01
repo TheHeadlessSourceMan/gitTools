@@ -74,8 +74,12 @@ def githubUrl(
     but it seems like it would be, so people will probably
     look here to find it.
     """
+    import subprocess
     cmd=['git','config','--get-regexp','remote.origin.url.*']
-    result=osrun(cmd,workingDirectory=asFilePath(localRepoPath))
+    po=subprocess.Popen(cmd,cwd=asFilePath(localRepoPath),stdout=subprocess.PIPE)
+    out,_=po.communicate()
+    result=out.strip().decode('utf-8',errors='ignore')
+    #result=osrun(cmd,workingDirectory=asFilePath(localRepoPath))
     resultArray=str(result).strip().split(' ',1)
     if len(resultArray)>1:
         result=resultArray[1].rsplit('.git',1)[0]

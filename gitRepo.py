@@ -222,13 +222,14 @@ class GitRepo:
         out,_=subprocess.Popen(cmd,shell=True,cwd=str(self.localRepoPath),
             stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()
         result=out.decode('utf-8',errors='ignore')
-        if result.find('\nfatal: '):
+        if result.find('\nfatal: ')>=0:
             # I'm no doctor, but...
             # anything fatal is not good for your health
             if branchName==self.UPSTREAM_BRANCH_NAME\
-                and result.find("fatal: 'upstream' does not appear to be a git repository")>=0:
+                and (result.find("fatal: 'upstream' does not appear to be a git repository")>=0
+                     or result.find("unknown revision or path not in the working tree")):
                 msg="""upstream repositry is not set.  Either:
-                    a) in python gitRepo.upstream="https://girhub.com/REPO_MAINTAINER/REPO.git"
+                    a) in python gitRepo.upstream="https://github.com/REPO_MAINTAINER/REPO.git"
                     b) or run:
                         git remote add upstream https://github.com/REPO_MAINTAINER/REPO.git
                         git fetch upstream

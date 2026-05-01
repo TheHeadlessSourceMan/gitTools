@@ -5,7 +5,7 @@ NOTE: this can have a number of changes within it
 """
 import typing
 from enum import IntEnum
-from paths import Url
+from paths import FileLocationCompatible,Url,asFileLocation
 from .change import ChangeLocation,ChangeLocationType
 if typing.TYPE_CHECKING:
     from .diff import FileDifferences
@@ -38,6 +38,21 @@ class Difference:
         self.after:typing.List[ChangeLocation]=[]
         self.afterWithContext:typing.Optional[ChangeLocation]=None
         self.assign(data)
+
+    def containsLocation(self,
+        location:FileLocationCompatible,
+        before:bool=False,
+        after:bool=True
+        )->bool:
+        """
+        Check if this difference contains a given location
+        in either the old or new file (depending on inNew)
+        """
+        location=asFileLocation(location)
+        for changeLocation in self.getChangeLocations(before,after):
+            if changeLocation.overlaps(location):
+                return True
+        return False
 
     def getChangeLocations(self,
         before:bool=False,
