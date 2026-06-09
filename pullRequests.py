@@ -2,6 +2,10 @@
 Tools for managing pull requests
 """
 import typing
+import subprocess
+import datetime
+import os
+import time
 from paths import FilePathCompatible,UrlCompatible,asFilePath,asUrl,asPathlibPath
 from k_runner.osrun import osrun
 from k_runner import ApplicationCallbacks
@@ -233,6 +237,166 @@ def checkoutPR(
     cmd=['git','checkout',branchName]
     result=osrun(cmd)
     print(result.outerr)
+
+
+class PrCheck:
+    """
+    Information about a single check for a pull request.
+    """
+    def __init__(self,name:str,passed:str,time:str,url:str):
+        self.name=name
+        self.passed=passed
+        self.time=time
+        self.url=url
+
+    def __repr__(self):
+        return f'PrCheck(name="{self.name}",passed="{self.passed}",time="{self.time}",url="{self.url}")'
+
+
+class PrChecks:
+    """
+    Automated checks for a pull request
+    """
+    def __init__(self,projectDirectory:str,prNum:int):
+        self.projectDirectory=projectDirectory
+        self.prNum=prNum
+        self.numSuccessful=0
+        self.numFailed=0
+        self.numSkipped=0
+        self.numPending=-1
+        self.checks:typing.List[PrCheck]=[]
+
+    def waitForCompletion(self,
+        progressCallback:typing.Optional[typing.Callable[[float],None]]=None,
+        checkInterval:float=5.0):
+        """
+        Wait for all checks to complete, optionally calling a progress callback with the percent complete.
+        """
+        while not self.isComplete:
+            if progressCallback is not None:
+                progressCallback(self.percentComplete)
+            self.rescan()
+            if not self.isComplete:
+                time.sleep(checkInterval)
+        if progressCallback is not None:
+            progressCallback(1.0)
+    waitFor=waitForCompletion
+    wait=waitForCompletion
+
+    @property
+    def numTotal(self)->int:
+        """
+        Total number of checks."""
+        if self.numPending<0:
+            return -1
+        return self.numSuccessful+self.numFailed+self.numSkipped+self.numPending
+
+    @property
+    def isComplete(self)->bool:
+        """
+        Are the checks complete?
+        """
+        return self.numPending==0
+
+    @property
+    def percentComplete(self)->float:
+        """
+        Percent of checks that are complete.
+        """
+        if self.numPending<=0:
+            return 0.0
+        return self.numPending/self.numTotal
+
+    def rescan(self):
+        """
+        Rescan for the latest check results and update the counts.
+        """
+        reults=subprocess.run(
+            f'cd {self.projectDirectory} && gh pr checks {self.prNum}',
+            capture_output=True,text=True,shell=True,check=True)
+        state=0
+        for line in reults.stdout.strip().splitlines():
+            line=line.strip()
+            if not line:
+                # skip all blank lines
+                continue
+            if state==0 and line[0].isdigit():
+                # get stats from first line that starts with a number
+                vals=line.split(',')
+                print(vals)
+                self.numFailed=int(vals[0].strip().split()[0])
+                self.numSuccessful=int(vals[1].strip().split()[0])
+                self.numSkipped=int(vals[2].strip().split()[0])
+                self.numPending=int(vals[3].strip().split()[1])
+                state=1
+                continue
+            # everything else is an individual chack result
+            cols=line.split('\t')
+            self.checks.append(PrCheck(*cols))
+
+class RunInstance:
+    """ 
+    Represents a single run of a workflow, which may have multiple jobs.
+    """
+    def __init__(self,
+        status:str='',
+        success:str='',
+        title:str='',
+        workflow:str='',
+        branch:str='',
+        event:str='',
+        id:str='',
+        elapsed:str='',
+        age:str=''):
+        """ """
+        self.status:str=status
+        self.success:str=success
+        self.title:str=title
+        self.workflow:str=workflow
+        self.branch:str=branch
+        self.event:str=event
+        self.id:str=id
+        self.elapsed:str=elapsed
+        self.age:str=age
+
+    def __repr__(self):
+        return f'RunInstance(status="{self.status}",title="{self.title}",workflow="{self.workflow}",branch="{self.branch}",event="{self.event}",id="{self.id}",elapsed="{self.elapsed}",age="{self.age}")'
+
+
+def getRuns(
+    projectDirectory:str,
+    branch:typing.Optional[str]='master',
+    user:typing.Optional[str]=os.environ.get('USERNAME'),
+    since:typing.Union[None,datetime.datetime,datetime.timedelta]=None,
+    includeScheduled:bool=False,
+    maxRuns:int=500
+    )->typing.Generator[RunInstance, None, None]:
+    """
+    Get the list of workflow runs for a project.
+    """
+    params=[f'-L {maxRuns}']
+    if since is not None:
+        if isinstance(since,datetime.timedelta):
+            since=(datetime.datetime.now()-since)
+        params.append(f'--since {since}')
+    if branch is not None:
+        params.append(f'-b {branch}')
+    if user is not None:
+        params.append(f'-u {user}')
+    reults=subprocess.run(
+        f'cd {projectDirectory} && gh run list {" ".join(params)}',
+        capture_output=True,text=True,shell=True,check=True)
+    for line in reults.stdout.strip().splitlines():
+        line=line.strip()
+        if not line:
+            # skip all blank lines
+            continue
+        cols=line.split('\t')
+        print(cols)
+        run=RunInstance(*cols)
+        if not includeScheduled and run.event=='schedule':
+            continue
+        yield run
 
 
 def cmdline(args:typing.Iterable[str])->int:
