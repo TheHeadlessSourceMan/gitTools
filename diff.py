@@ -35,7 +35,7 @@ class GitDifferences(FileDifferences):
         return Url(u)
 
 
-class GitMultiDifferences(MultiFileDifferences):
+class GitMultiFileDifferences(MultiFileDifferences):
     """
     A git diff containing multiple files
     """
@@ -67,3 +67,4 @@ class GitMultiDifferences(MultiFileDifferences):
             fd=GitDifferences("diff --git "+f,commit=self.commit)
             setattr(fd,"date",self.date)
             self.fileDiffs[fd.filename]=fd
+GitMultifileDifferences=GitMultiFileDifferences
