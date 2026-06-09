@@ -12,7 +12,7 @@ from gitTools.gitCommits import GitCommits
 from pullRequests import getPRs
 from tagsAndVersions import gitLatestReleaseVersion,gitTags,gitVersionTags
 from gitRemotes import addGitRemote, listGitRemotes,GitRemote,githubUrl
-from .diff import MultifileDiff
+from .diff import GitMultiFileDifferences
 from .exceptions import GitException
 
 
@@ -208,7 +208,7 @@ class GitRepo:
 
     def differencesFromBranch(self,
         branchName:str
-        )->MultifileDiff:
+        )->GitMultiFileDifferences:
         """
         Return all commits of the current branch
         that are not in a selected branch.
@@ -236,7 +236,7 @@ class GitRepo:
                     """
                 raise GitException(msg)
             raise GitException(result)
-        return MultifileDiff(result)
+        return GitMultiFileDifferences(result)
 
     def commitsForLine(self,
         repoFilename:FileUrlCompatible,

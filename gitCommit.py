@@ -6,7 +6,7 @@ import typing
 import datetime
 from paths import URL,UrlCompatible,asUrl
 from k_runner.osrun import osrun
-from .diff import MultifileDiff
+from .diff import GitMultiFileDifferences
 
 
 class GitCommit:
@@ -162,13 +162,13 @@ class GitCommit:
         return self.diff._data # pylint: disable=W0212
 
     @property
-    def diff(self)->MultifileDiff:
+    def diff(self)->GitMultiFileDifferences:
         """
         Return a diff describing what this commit did
         """
         cmd=f'git diff {self.hash}'
         result=osrun(cmd,workingDirectory=self.localRepoPath)
-        return MultifileDiff(result.stdout,self.date,commit=self)
+        return GitMultiFileDifferences(result.stdout,self.date,commit=self)
 
     @property
     def oneLineSummary(self)->str:

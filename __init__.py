@@ -13,6 +13,4 @@ from gitTools.commitHistoryToHours import *
 from gitTools.gitCommit import *
 from gitTools.gitCommits import *
 from gitTools.gitRecursive import *
-from gitTools.change import *
-from gitTools.difference import *
 from gitTools.diff import *
